@@ -180,98 +180,22 @@ button:disabled {
     color: #aeb8c9;
     word-break: break-all;
 }
-.error {
-    color: #ff6b6b;
-}
 
-/* Music Search Styles */
-.music-search-row {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 15px;
-}
-.music-results {
-    max-height: 320px;
-    overflow-y: auto;
-    border-radius: 10px;
-    background: #080c15;
-    border: 1px solid #1a2332;
-}
-.music-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 14px;
-    cursor: pointer;
-    transition: background 0.15s;
-    border-bottom: 1px solid #121820;
-}
-.music-item:last-child {
-    border-bottom: none;
-}
-.music-item:hover {
-    background: #121a2b;
-}
-.music-thumb {
-    width: 80px;
-    height: 60px;
-    border-radius: 6px;
-    object-fit: cover;
-    background: #161d2c;
-    flex-shrink: 0;
-}
-.music-info {
-    flex: 1;
-    min-width: 0;
-}
-.music-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: #fff;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.music-author {
-    font-size: 12px;
-    color: #6d778a;
-    margin-top: 3px;
-}
-.music-duration {
-    font-size: 12px;
-    color: #4a5568;
-    margin-left: auto;
-    flex-shrink: 0;
-}
-.music-player-area {
+/* YouTube Player */
+.youtube-container {
     margin-top: 15px;
-    padding: 14px;
-    background: #080c15;
-    border-radius: 10px;
-    border: 1px solid #1a2332;
     display: none;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #20283a;
+    background: #000;
 }
-.music-player-area.active {
+.youtube-container iframe {
+    width: 100%;
+    height: 420px;
     display: block;
 }
-.music-now-playing {
-    font-size: 13px;
-    color: #8791a5;
-    margin-bottom: 8px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-audio {
-    width: 100%;
-    height: 40px;
-}
-.empty-state {
-    text-align: center;
-    padding: 30px;
-    color: #596477;
-    font-size: 14px;
-}
+
 .spinner {
     display: inline-block;
     width: 16px;
@@ -312,13 +236,16 @@ footer {
         flex-direction: column;
         text-align: center;
     }
+    .youtube-container iframe {
+        height: 220px;
+    }
 }
 </style>
 </head>
 <body>
 <header>
     <div class="logo">⚡ Game<span>Hub</span></div>
-    <div class="status">v2.0</div>
+    <div class="status">v2.1</div>
 </header>
 <div class="container">
     <div class="hero">
@@ -344,45 +271,39 @@ footer {
                 <div class="profile-top">
                     <img id="avatar" class="avatar" alt="avatar">
                     <div>
-                        <div id="displayName" class="username">
-                            —
-                        </div>
-                        <div id="userId" class="user-id">
-                            ID: —
-                        </div>
-                        <div id="presence" class="online">
-                            —
-                        </div>
+                        <div id="displayName" class="username">—</div>
+                        <div id="userId" class="user-id">ID: —</div>
+                        <div id="presence" class="online">—</div>
+                        <div id="created" class="user-id"></div>
                     </div>
                 </div>
                 <div id="game" class="game"></div>
                 <br>
-                <button onclick="openRobloxProfile()">
-                    Otwórz profil Roblox
-                </button>
+                <button onclick="openRobloxProfile()">Otwórz profil Roblox</button>
             </div>
         </div>
 
-        <!-- YOUTUBE MUSIC SEARCH -->
+        <!-- YOUTUBE -->
         <div class="card full">
-            <h2>🎵 YouTube Music Search (No Ads)</h2>
-            <div class="music-search-row">
+            <h2>🎵 YouTube Music Search</h2>
+            <div class="input-row">
                 <input
-                    id="musicQuery"
+                    id="ytQuery"
                     type="text"
                     placeholder="Wpisz tytuł piosenki lub artystę..."
-                    onkeydown="if(event.key==='Enter')searchMusic()"
+                    onkeydown="if(event.key==='Enter')searchYouTube()"
                 >
-                <button onclick="searchMusic()" id="musicSearchBtn">
+                <button onclick="searchYouTube()" id="ytBtn">
                     🔎 Szukaj
                 </button>
             </div>
-            <div id="musicResults" class="music-results">
-                <div class="empty-state">Wpisz frazę i kliknij Szukaj, aby znaleźć muzykę.</div>
-            </div>
-            <div id="musicPlayerArea" class="music-player-area">
-                <div class="music-now-playing" id="nowPlaying">Odtwarzanie: —</div>
-                <audio id="ytAudio" controls></audio>
+            <div id="ytContainer" class="youtube-container">
+                <iframe id="ytPlayer" 
+                    src="" 
+                    frameborder="0" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                    allowfullscreen>
+                </iframe>
             </div>
         </div>
 
@@ -390,31 +311,19 @@ footer {
         <div class="card">
             <h2>🛠️ Quick Tools</h2>
             <div class="tools">
-                <div class="tool" onclick="generatePassword()">
-                    🔐 Hasło
-                </div>
-                <div class="tool" onclick="generateColor()">
-                    🎨 Kolor
-                </div>
-                <div class="tool" onclick="showTime()">
-                    🕒 Czas
-                </div>
-                <div class="tool" onclick="copyIP()">
-                    🌐 IP
-                </div>
-                <div class="tool" onclick="openRoblox()">
-                    🕹️ Roblox
-                </div>
-                <div class="tool" onclick="about()">
-                    ℹ️ About
-                </div>
+                <div class="tool" onclick="generatePassword()">🔐 Hasło</div>
+                <div class="tool" onclick="generateColor()">🎨 Kolor</div>
+                <div class="tool" onclick="showTime()">🕒 Czas</div>
+                <div class="tool" onclick="copyIP()">🌐 IP</div>
+                <div class="tool" onclick="openRoblox()">🕹️ Roblox</div>
+                <div class="tool" onclick="about()">ℹ️ About</div>
             </div>
             <div id="toolResult" class="result"></div>
         </div>
     </div>
 </div>
 <footer>
-    GameHub v2.0 • Made with HTML / CSS / JavaScript
+    GameHub v2.1 • Made with HTML / CSS / JavaScript
 </footer>
 
 <script>
@@ -422,7 +331,7 @@ let currentUserId = null;
 const AVATAR_FALLBACK = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Crect width='90' height='90' fill='%23161d2c'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%236d778a' font-size='35'%3E%3F%3C/text%3E%3C/svg%3E";
 
 // =============================
-// ROBLOX PLAYER SEARCH (via RoProxy)
+// ROBLOX PLAYER SEARCH
 // =============================
 async function searchPlayer() {
     const username = document.getElementById("username").value.trim();
@@ -433,13 +342,14 @@ async function searchPlayer() {
 
     const btn = document.getElementById("searchBtn");
     btn.disabled = true;
-    btn.textContent = "Ładowanie...";
+    btn.innerHTML = '<span class="spinner"></span>Szukam...';
 
     const profile = document.getElementById("profile");
     const displayNameEl = document.getElementById("displayName");
     const userIdEl = document.getElementById("userId");
     const presenceEl = document.getElementById("presence");
     const gameEl = document.getElementById("game");
+    const createdEl = document.getElementById("created");
     const avatarEl = document.getElementById("avatar");
 
     profile.style.display = "block";
@@ -449,12 +359,15 @@ async function searchPlayer() {
     presenceEl.textContent = "";
     presenceEl.className = "online";
     gameEl.textContent = "";
+    createdEl.textContent = "";
     avatarEl.src = AVATAR_FALLBACK;
     currentUserId = null;
 
+    let user = null;
+
+    // --- PRÓBA 1: RoProxy (najszybsze, najlepsze) ---
     try {
-        // Używamy RoProxy - dedykowanego proxy dla Roblox API
-        const response = await fetch("https://users.roproxy.com/v1/usernames/users", {
+        const res = await fetch("https://users.roproxy.com/v1/usernames/users", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -466,98 +379,136 @@ async function searchPlayer() {
             })
         });
 
-        if (!response.ok) {
-            throw new Error(`Błąd HTTP ${response.status}`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data.data && data.data.length > 0) {
+                user = data.data[0];
+            }
         }
+    } catch (e) {
+        console.log("RoProxy nie działa, próbuję fallback...");
+    }
 
-        const data = await response.json();
-
-        if (!data.data || data.data.length === 0) {
-            displayNameEl.textContent = "Nie znaleziono użytkownika.";
-            userIdEl.textContent = "ID: —";
-            btn.disabled = false;
-            btn.textContent = "🔎 Szukaj";
-            return;
+    // --- PRÓBA 2: AllOrigins + GET search (zawsze działa) ---
+    if (!user) {
+        try {
+            const searchUrl = `https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(username)}&limit=10`;
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(searchUrl)}`;
+            const res = await fetch(proxyUrl);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.data && data.data.length > 0) {
+                    // Szukamy dokładnego dopasowania lub bierzemy pierwszy
+                    user = data.data.find(u => u.name.toLowerCase() === username.toLowerCase()) || data.data[0];
+                }
+            }
+        } catch (e) {
+            console.log("AllOrigins też nie działa...");
         }
+    }
 
-        const user = data.data[0];
-        currentUserId = user.id;
-
-        displayNameEl.textContent = `${user.displayName} (@${user.name})`;
-        userIdEl.textContent = "ID: " + user.id;
-
-        // Avatar - bezpośredni URL Roblox (nie wymaga proxy)
-        avatarEl.src = `https://www.roblox.com/headshot-thumbnail/image?userId=${user.id}&width=180&height=180&format=png`;
-        avatarEl.onerror = function() {
-            this.src = AVATAR_FALLBACK;
-        };
-
-        await getPresence(user.id);
-    } catch (error) {
-        console.error(error);
-        displayNameEl.textContent = "Błąd połączenia z Roblox API.";
-        displayNameEl.className = "username red";
-        userIdEl.textContent = error.message || "Spróbuj ponownie za chwilę.";
-    } finally {
+    // --- WYNIK ---
+    if (!user) {
+        displayNameEl.textContent = "Nie znaleziono użytkownika.";
+        userIdEl.textContent = "ID: —";
         btn.disabled = false;
         btn.textContent = "🔎 Szukaj";
+        return;
+    }
+
+    currentUserId = user.id;
+    displayNameEl.textContent = `${user.displayName} (@${user.name})`;
+    userIdEl.textContent = "ID: " + user.id;
+
+    // Avatar - bezpośredni URL Roblox (nie wymaga proxy dla <img>)
+    avatarEl.src = `https://www.roblox.com/headshot-thumbnail/image?userId=${user.id}&width=180&height=180&format=png`;
+    avatarEl.onerror = () => { avatarEl.src = AVATAR_FALLBACK; };
+
+    // Pobierz dodatkowe info (data rejestracji)
+    fetchUserDetails(user.id);
+
+    // Spróbuj pobrać presence (może nie działać przez proxy, ale spróbujemy)
+    getPresence(user.id);
+
+    btn.disabled = false;
+    btn.textContent = "🔎 Szukaj";
+}
+
+// =============================
+// ROBLOX USER DETAILS
+// =============================
+async function fetchUserDetails(userId) {
+    try {
+        const res = await fetch(`https://users.roproxy.com/v1/users/${userId}`);
+        if (res.ok) {
+            const data = await res.json();
+            const date = new Date(data.created);
+            document.getElementById("created").textContent = "Konto od: " + date.toLocaleDateString("pl-PL");
+        }
+    } catch (e) {
+        // Pomijamy, to tylko dodatek
     }
 }
 
 // =============================
-// ROBLOX PRESENCE (via RoProxy)
+// ROBLOX PRESENCE (opcjonalne)
 // =============================
 async function getPresence(userId) {
     try {
-        const response = await fetch("https://presence.roproxy.com/v1/presence/users", {
+        const res = await fetch("https://presence.roproxy.com/v1/presence/users", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
                 "Accept": "application/json"
             },
-            body: JSON.stringify({
-                userIds: [userId]
-            })
+            body: JSON.stringify({ userIds: [userId] })
         });
 
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
+        if (!res.ok) throw new Error("HTTP " + res.status);
+
+        const data = await res.json();
+        if (!data.userPresences || data.userPresences.length === 0) return;
+
+        const p = data.userPresences[0];
+        const presenceEl = document.getElementById("presence");
+        const gameEl = document.getElementById("game");
+
+        if (p.userPresenceType === 0) {
+            presenceEl.textContent = "⚪ OFFLINE";
+            presenceEl.className = "online gray";
+        } else if (p.userPresenceType === 1) {
+            presenceEl.textContent = "🟢 ONLINE";
+            presenceEl.className = "online green";
+        } else if (p.userPresenceType === 2) {
+            presenceEl.textContent = "🟢 W GRZE";
+            presenceEl.className = "online green";
+            gameEl.textContent = "🎮 " + (p.lastLocation || "Gra Roblox");
+        } else if (p.userPresenceType === 3) {
+            presenceEl.textContent = "🟡 ROBLOX STUDIO";
+            presenceEl.className = "online yellow";
         }
-
-        const data = await response.json();
-
-        if (!data.userPresences || data.userPresences.length === 0) {
-            document.getElementById("presence").textContent = "⚪ Brak informacji o statusie";
-            document.getElementById("presence").className = "online gray";
-            return;
-        }
-
-        const presence = data.userPresences[0];
-        const presenceElement = document.getElementById("presence");
-        const gameElement = document.getElementById("game");
-
-        if (presence.userPresenceType === 0) {
-            presenceElement.textContent = "⚪ OFFLINE";
-            presenceElement.className = "online gray";
-            gameElement.textContent = "";
-        } else if (presence.userPresenceType === 1) {
-            presenceElement.textContent = "🟢 ONLINE";
-            presenceElement.className = "online green";
-            gameElement.textContent = "";
-        } else if (presence.userPresenceType === 2) {
-            presenceElement.textContent = "🟢 W GRZE";
-            presenceElement.className = "online green";
-            gameElement.textContent = "🎮 " + (presence.lastLocation || "Gra Roblox");
-        } else if (presence.userPresenceType === 3) {
-            presenceElement.textContent = "🟡 ROBLOX STUDIO";
-            presenceElement.className = "online yellow";
-            gameElement.textContent = "";
-        }
-    } catch (error) {
-        console.error(error);
-        document.getElementById("presence").textContent = "❌ Nie udało się sprawdzić statusu.";
-        document.getElementById("presence").className = "online red";
+    } catch (e) {
+        document.getElementById("presence").textContent = "⚪ Status niedostępny";
+        document.getElementById("presence").className = "online gray";
     }
+}
+
+// =============================
+// YOUTUBE SEARCH (iframe - zero API, zero proxy)
+// =============================
+function searchYouTube() {
+    const query = document.getElementById("ytQuery").value.trim();
+    if (!query) {
+        alert("Wpisz czego szukasz.");
+        return;
+    }
+
+    const container = document.getElementById("ytContainer");
+    const iframe = document.getElementById("ytPlayer");
+
+    // listType=search to magiczny parametr YouTube — sam wyszukuje i robi playlistę
+    iframe.src = `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(query)}&autoplay=1&rel=0`;
+    container.style.display = "block";
 }
 
 // =============================
@@ -570,150 +521,6 @@ function openRobloxProfile() {
 
 function openRoblox() {
     window.open("https://www.roblox.com/", "_blank");
-}
-
-// =============================
-// YOUTUBE MUSIC SEARCH (via Piped API - no ads)
-// =============================
-async function searchMusic() {
-    const query = document.getElementById("musicQuery").value.trim();
-    if (!query) {
-        alert("Wpisz tytuł piosenki lub artystę.");
-        return;
-    }
-
-    const btn = document.getElementById("musicSearchBtn");
-    const resultsContainer = document.getElementById("musicResults");
-    
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span>Szukam...';
-    resultsContainer.innerHTML = '<div class="empty-state"><span class="spinner"></span>Wyszukiwanie...</div>';
-
-    try {
-        // Piped API - otwarta alternatywa YouTube bez reklam
-        const searchUrl = `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=videos`;
-        
-        let response;
-        try {
-            // Próba bezpośrednia
-            response = await fetch(searchUrl);
-        } catch (corsErr) {
-            // Fallback przez allorigins jeśli CORS zablokuje
-            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(searchUrl)}`;
-            const proxyResponse = await fetch(proxyUrl);
-            const proxyData = await proxyResponse.json();
-            response = {
-                ok: proxyResponse.ok,
-                json: async () => JSON.parse(proxyData.contents)
-            };
-        }
-
-        if (!response.ok) {
-            throw new Error(`Błąd HTTP ${response.status || 'proxy'}`);
-        }
-
-        const data = await response.json();
-
-        if (!data.items || data.items.length === 0) {
-            resultsContainer.innerHTML = '<div class="empty-state">Nie znaleziono wyników. Spróbuj inną frazę.</div>';
-            return;
-        }
-
-        // Renderuj wyniki
-        let html = '';
-        data.items.slice(0, 15).forEach(item => {
-            const videoId = item.url.replace('/watch?v=', '');
-            const thumb = item.thumbnail || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
-            const duration = item.duration > 0 ? formatTime(item.duration) : '';
-            
-            html += `
-                <div class="music-item" onclick="playMusic('${videoId}', '${escapeHtml(item.title)}', '${escapeHtml(item.uploaderName)}')">
-                    <img class="music-thumb" src="${thumb}" alt="" onerror="this.src='${AVATAR_FALLBACK}'">
-                    <div class="music-info">
-                        <div class="music-title">${escapeHtml(item.title)}</div>
-                        <div class="music-author">${escapeHtml(item.uploaderName)}</div>
-                    </div>
-                    <div class="music-duration">${duration}</div>
-                </div>
-            `;
-        });
-        
-        resultsContainer.innerHTML = html;
-
-    } catch (error) {
-        console.error(error);
-        resultsContainer.innerHTML = `<div class="empty-state" style="color:#ff6b6b">Błąd wyszukiwania: ${error.message}<br>Spróbuj ponownie za chwilę.</div>`;
-    } finally {
-        btn.disabled = false;
-        btn.textContent = "🔎 Szukaj";
-    }
-}
-
-async function playMusic(videoId, title, author) {
-    const playerArea = document.getElementById("musicPlayerArea");
-    const audioEl = document.getElementById("ytAudio");
-    const nowPlaying = document.getElementById("nowPlaying");
-    
-    nowPlaying.textContent = `Ładowanie: ${title} — ${author}...`;
-    playerArea.classList.add("active");
-    audioEl.src = "";
-
-    try {
-        const streamUrl = `https://pipedapi.kavin.rocks/streams/${videoId}`;
-        
-        let response;
-        try {
-            response = await fetch(streamUrl);
-        } catch (corsErr) {
-            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(streamUrl)}`;
-            const proxyResponse = await fetch(proxyUrl);
-            const proxyData = await proxyResponse.json();
-            response = {
-                ok: proxyResponse.ok,
-                json: async () => JSON.parse(proxyData.contents)
-            };
-        }
-
-        if (!response.ok) {
-            throw new Error("Nie udało się pobrać streamu");
-        }
-
-        const data = await response.json();
-        
-        // Szukamy najlepszego strumienia audio
-        let audioStream = null;
-        if (data.audioStreams && data.audioStreams.length > 0) {
-            // Preferujemy formaty audio (np. m4a, opus)
-            audioStream = data.audioStreams.find(s => s.format === 'M4A') 
-                       || data.audioStreams.find(s => s.format === 'WEBM_OPUS')
-                       || data.audioStreams[0];
-        }
-
-        if (!audioStream || !audioStream.url) {
-            throw new Error("Brak dostępnego strumienia audio");
-        }
-
-        audioEl.src = audioStream.url;
-        audioEl.play();
-        nowPlaying.textContent = `▶ ${title} — ${author}`;
-        
-    } catch (error) {
-        console.error(error);
-        nowPlaying.textContent = `❌ Błąd odtwarzania: ${error.message}`;
-        nowPlaying.style.color = "#ff6b6b";
-    }
-}
-
-function formatTime(seconds) {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
 }
 
 // =============================
@@ -752,7 +559,7 @@ async function copyIP() {
 
 function about() {
     document.getElementById("toolResult").textContent =
-        "GameHub v2.0 — Roblox tools & YouTube Music (no ads).";
+        "GameHub v2.1 — Roblox tools & YouTube Music.";
 }
 </script>
 </body>
