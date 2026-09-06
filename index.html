@@ -181,8 +181,8 @@ button:disabled {
     word-break: break-all;
 }
 
-/* YouTube Player */
-.youtube-container {
+/* YouTube */
+.youtube-wrap {
     margin-top: 15px;
     display: none;
     border-radius: 12px;
@@ -190,10 +190,16 @@ button:disabled {
     border: 1px solid #20283a;
     background: #000;
 }
-.youtube-container iframe {
+.youtube-wrap iframe {
     width: 100%;
     height: 420px;
     display: block;
+    border: none;
+}
+.hint {
+    margin-top: 10px;
+    color: #596477;
+    font-size: 13px;
 }
 
 .spinner {
@@ -236,7 +242,7 @@ footer {
         flex-direction: column;
         text-align: center;
     }
-    .youtube-container iframe {
+    .youtube-wrap iframe {
         height: 220px;
     }
 }
@@ -245,7 +251,7 @@ footer {
 <body>
 <header>
     <div class="logo">⚡ Game<span>Hub</span></div>
-    <div class="status">v2.1</div>
+    <div class="status">v3.0</div>
 </header>
 <div class="container">
     <div class="hero">
@@ -257,15 +263,9 @@ footer {
         <div class="card full">
             <h2>🎮 Roblox Player Tracker</h2>
             <div class="input-row">
-                <input
-                    id="username"
-                    type="text"
-                    placeholder="Wpisz Roblox username..."
-                    onkeydown="if(event.key==='Enter')searchPlayer()"
-                >
-                <button onclick="searchPlayer()" id="searchBtn">
-                    🔎 Szukaj
-                </button>
+                <input id="username" type="text" placeholder="Wpisz Roblox username..."
+                    onkeydown="if(event.key==='Enter')searchPlayer()">
+                <button onclick="searchPlayer()" id="searchBtn">🔎 Szukaj</button>
             </div>
             <div id="profile" class="profile">
                 <div class="profile-top">
@@ -274,37 +274,30 @@ footer {
                         <div id="displayName" class="username">—</div>
                         <div id="userId" class="user-id">ID: —</div>
                         <div id="presence" class="online">—</div>
-                        <div id="created" class="user-id"></div>
                     </div>
                 </div>
                 <div id="game" class="game"></div>
                 <br>
                 <button onclick="openRobloxProfile()">Otwórz profil Roblox</button>
+                <button onclick="openRobloxProfileDirect()" style="margin-left:10px;background:#1a3a5c;">🌐 Otwórz w nowej karcie</button>
             </div>
+            <p class="hint" id="robloxHint" style="display:none;margin-top:10px;">
+                Jeśli wyszukiwanie nie działa, sprawdź czy nie masz włączonego AdBlockera lub Pi-hole blokującego <code>corsproxy.io</code>.
+            </p>
         </div>
 
         <!-- YOUTUBE -->
         <div class="card full">
             <h2>🎵 YouTube Music Search</h2>
             <div class="input-row">
-                <input
-                    id="ytQuery"
-                    type="text"
-                    placeholder="Wpisz tytuł piosenki lub artystę..."
-                    onkeydown="if(event.key==='Enter')searchYouTube()"
-                >
-                <button onclick="searchYouTube()" id="ytBtn">
-                    🔎 Szukaj
-                </button>
+                <input id="ytQuery" type="text" placeholder="Wpisz tytuł piosenki lub artystę..."
+                    onkeydown="if(event.key==='Enter')searchYouTube()">
+                <button onclick="searchYouTube()" id="ytBtn">🔎 Szukaj</button>
             </div>
-            <div id="ytContainer" class="youtube-container">
-                <iframe id="ytPlayer" 
-                    src="" 
-                    frameborder="0" 
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                    allowfullscreen>
-                </iframe>
+            <div id="ytWrap" class="youtube-wrap">
+                <iframe id="ytFrame" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
             </div>
+            <p class="hint">Wpisz nazwę utworu i kliknij Szukaj. Player YouTube załaduje playlistę wyników.</p>
         </div>
 
         <!-- QUICK TOOLS -->
@@ -322,16 +315,14 @@ footer {
         </div>
     </div>
 </div>
-<footer>
-    GameHub v2.1 • Made with HTML / CSS / JavaScript
-</footer>
+<footer>GameHub v3.0 • Made with HTML / CSS / JavaScript</footer>
 
 <script>
 let currentUserId = null;
 const AVATAR_FALLBACK = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Crect width='90' height='90' fill='%23161d2c'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%236d778a' font-size='35'%3E%3F%3C/text%3E%3C/svg%3E";
 
 // =============================
-// ROBLOX PLAYER SEARCH
+// ROBLOX
 // =============================
 async function searchPlayer() {
     const username = document.getElementById("username").value.trim();
@@ -341,17 +332,16 @@ async function searchPlayer() {
     }
 
     const btn = document.getElementById("searchBtn");
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span>Szukam...';
-
     const profile = document.getElementById("profile");
     const displayNameEl = document.getElementById("displayName");
     const userIdEl = document.getElementById("userId");
     const presenceEl = document.getElementById("presence");
     const gameEl = document.getElementById("game");
-    const createdEl = document.getElementById("created");
     const avatarEl = document.getElementById("avatar");
+    const hintEl = document.getElementById("robloxHint");
 
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Szukam...';
     profile.style.display = "block";
     displayNameEl.textContent = "Ładowanie...";
     displayNameEl.className = "username";
@@ -359,103 +349,74 @@ async function searchPlayer() {
     presenceEl.textContent = "";
     presenceEl.className = "online";
     gameEl.textContent = "";
-    createdEl.textContent = "";
     avatarEl.src = AVATAR_FALLBACK;
     currentUserId = null;
+    hintEl.style.display = "none";
 
-    let user = null;
-
-    // --- PRÓBA 1: RoProxy (najszybsze, najlepsze) ---
     try {
-        const res = await fetch("https://users.roproxy.com/v1/usernames/users", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Accept": "application/json"
-            },
-            body: JSON.stringify({
-                usernames: [username],
-                excludeBannedUsers: false
-            })
+        // Używamy corsproxy.io (najpopularniejsze, działające proxy) + GET search
+        const targetUrl = `https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(username)}&limit=10`;
+        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+
+        console.log("[Roblox] Fetching:", proxyUrl);
+
+        const res = await fetch(proxyUrl, {
+            method: "GET",
+            headers: { "Accept": "application/json" }
         });
 
-        if (res.ok) {
-            const data = await res.json();
-            if (data.data && data.data.length > 0) {
-                user = data.data[0];
-            }
-        }
-    } catch (e) {
-        console.log("RoProxy nie działa, próbuję fallback...");
-    }
+        console.log("[Roblox] Response status:", res.status);
 
-    // --- PRÓBA 2: AllOrigins + GET search (zawsze działa) ---
-    if (!user) {
-        try {
-            const searchUrl = `https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(username)}&limit=10`;
-            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(searchUrl)}`;
-            const res = await fetch(proxyUrl);
-            if (res.ok) {
-                const data = await res.json();
-                if (data.data && data.data.length > 0) {
-                    // Szukamy dokładnego dopasowania lub bierzemy pierwszy
-                    user = data.data.find(u => u.name.toLowerCase() === username.toLowerCase()) || data.data[0];
-                }
-            }
-        } catch (e) {
-            console.log("AllOrigins też nie działa...");
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
         }
-    }
 
-    // --- WYNIK ---
-    if (!user) {
-        displayNameEl.textContent = "Nie znaleziono użytkownika.";
-        userIdEl.textContent = "ID: —";
+        const data = await res.json();
+        console.log("[Roblox] Data:", data);
+
+        if (!data.data || data.data.length === 0) {
+            displayNameEl.textContent = "Nie znaleziono użytkownika.";
+            userIdEl.textContent = "ID: —";
+            btn.disabled = false;
+            btn.textContent = "🔎 Szukaj";
+            return;
+        }
+
+        // Szukamy dokładnego dopasowania lub bierzemy pierwszy
+        const user = data.data.find(u => u.name.toLowerCase() === username.toLowerCase()) || data.data[0];
+        currentUserId = user.id;
+
+        displayNameEl.textContent = `${user.displayName} (@${user.name})`;
+        userIdEl.textContent = "ID: " + user.id;
+
+        // Avatar - bezpośredni URL Roblox (dla <img> CORS nie jest potrzebny)
+        avatarEl.src = `https://www.roblox.com/headshot-thumbnail/image?userId=${user.id}&width=180&height=180&format=png`;
+        avatarEl.onerror = () => { avatarEl.src = AVATAR_FALLBACK; };
+
+        // Spróbuj pobrać presence (opcjonalne, może nie działać przez proxy)
+        getPresence(user.id).catch(() => {
+            presenceEl.textContent = "⚪ Status niedostępny";
+            presenceEl.className = "online gray";
+        });
+
+    } catch (error) {
+        console.error("[Roblox] Error:", error);
+        displayNameEl.textContent = "Błąd połączenia z Roblox API.";
+        displayNameEl.className = "username red";
+        userIdEl.textContent = error.message || "Sprawdź konsolę (F12) po szczegóły.";
+        hintEl.style.display = "block";
+    } finally {
         btn.disabled = false;
         btn.textContent = "🔎 Szukaj";
-        return;
-    }
-
-    currentUserId = user.id;
-    displayNameEl.textContent = `${user.displayName} (@${user.name})`;
-    userIdEl.textContent = "ID: " + user.id;
-
-    // Avatar - bezpośredni URL Roblox (nie wymaga proxy dla <img>)
-    avatarEl.src = `https://www.roblox.com/headshot-thumbnail/image?userId=${user.id}&width=180&height=180&format=png`;
-    avatarEl.onerror = () => { avatarEl.src = AVATAR_FALLBACK; };
-
-    // Pobierz dodatkowe info (data rejestracji)
-    fetchUserDetails(user.id);
-
-    // Spróbuj pobrać presence (może nie działać przez proxy, ale spróbujemy)
-    getPresence(user.id);
-
-    btn.disabled = false;
-    btn.textContent = "🔎 Szukaj";
-}
-
-// =============================
-// ROBLOX USER DETAILS
-// =============================
-async function fetchUserDetails(userId) {
-    try {
-        const res = await fetch(`https://users.roproxy.com/v1/users/${userId}`);
-        if (res.ok) {
-            const data = await res.json();
-            const date = new Date(data.created);
-            document.getElementById("created").textContent = "Konto od: " + date.toLocaleDateString("pl-PL");
-        }
-    } catch (e) {
-        // Pomijamy, to tylko dodatek
     }
 }
 
-// =============================
-// ROBLOX PRESENCE (opcjonalne)
-// =============================
 async function getPresence(userId) {
     try {
-        const res = await fetch("https://presence.roproxy.com/v1/presence/users", {
+        const targetUrl = `https://presence.roblox.com/v1/presence/users`;
+        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+
+        const res = await fetch(proxyUrl, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -488,13 +449,28 @@ async function getPresence(userId) {
             presenceEl.className = "online yellow";
         }
     } catch (e) {
-        document.getElementById("presence").textContent = "⚪ Status niedostępny";
-        document.getElementById("presence").className = "online gray";
+        console.log("[Roblox] Presence error:", e);
+        throw e;
     }
 }
 
+function openRobloxProfile() {
+    if (!currentUserId) return;
+    window.open("https://www.roblox.com/users/" + currentUserId + "/profile", "_blank");
+}
+
+function openRobloxProfileDirect() {
+    const username = document.getElementById("username").value.trim();
+    if (!username) return;
+    window.open("https://www.roblox.com/search/users?keyword=" + encodeURIComponent(username), "_blank");
+}
+
+function openRoblox() {
+    window.open("https://www.roblox.com/", "_blank");
+}
+
 // =============================
-// YOUTUBE SEARCH (iframe - zero API, zero proxy)
+// YOUTUBE (iframe - zero API)
 // =============================
 function searchYouTube() {
     const query = document.getElementById("ytQuery").value.trim();
@@ -503,24 +479,12 @@ function searchYouTube() {
         return;
     }
 
-    const container = document.getElementById("ytContainer");
-    const iframe = document.getElementById("ytPlayer");
+    const wrap = document.getElementById("ytWrap");
+    const frame = document.getElementById("ytFrame");
 
-    // listType=search to magiczny parametr YouTube — sam wyszukuje i robi playlistę
-    iframe.src = `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(query)}&autoplay=1&rel=0`;
-    container.style.display = "block";
-}
-
-// =============================
-// ROBLOX PROFILE
-// =============================
-function openRobloxProfile() {
-    if (!currentUserId) return;
-    window.open("https://www.roblox.com/users/" + currentUserId + "/profile", "_blank");
-}
-
-function openRoblox() {
-    window.open("https://www.roblox.com/", "_blank");
+    // listType=search to oficjalna funkcja embed YouTube - nie wymaga żadnego API
+    frame.src = `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(query)}&autoplay=1&rel=0`;
+    wrap.style.display = "block";
 }
 
 // =============================
@@ -542,8 +506,7 @@ function generateColor() {
 
 function showTime() {
     const now = new Date();
-    document.getElementById("toolResult").textContent =
-        "Aktualny czas: " + now.toLocaleTimeString("pl-PL");
+    document.getElementById("toolResult").textContent = "Aktualny czas: " + now.toLocaleTimeString("pl-PL");
 }
 
 async function copyIP() {
@@ -558,8 +521,7 @@ async function copyIP() {
 }
 
 function about() {
-    document.getElementById("toolResult").textContent =
-        "GameHub v2.1 — Roblox tools & YouTube Music.";
+    document.getElementById("toolResult").textContent = "GameHub v3.0 — Roblox tools & YouTube Music.";
 }
 </script>
 </body>
