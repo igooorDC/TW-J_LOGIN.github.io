@@ -431,7 +431,7 @@ async function searchPlayer() {
     currentUserId = null;
 
     try {
-        // POST na usernames/users - dokładne dopasowanie, nie szukanie po słowach kluczowych
+        // POST na usernames/users - dokładne dopasowanie nazwy
         const targetUrl = "https://users.roblox.com/v1/usernames/users";
         const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(targetUrl);
 
@@ -458,6 +458,7 @@ async function searchPlayer() {
         const data = await res.json();
         console.log("[Roblox] Data:", data);
 
+        // SPRAWDZENIE: czy użytkownik faktycznie istnieje
         if (!data.data || data.data.length === 0) {
             displayNameEl.textContent = "Nie znaleziono użytkownika.";
             userIdEl.textContent = "ID: —";
@@ -467,6 +468,16 @@ async function searchPlayer() {
         }
 
         const user = data.data[0];
+        
+        // KLUCZOWE: API zwraca obiekt z id: null jeśli użytkownik nie istnieje
+        if (!user.id) {
+            displayNameEl.textContent = "Nie znaleziono użytkownika.";
+            userIdEl.textContent = "ID: —";
+            btn.disabled = false;
+            btn.textContent = "🔎 Szukaj";
+            return;
+        }
+
         currentUserId = user.id;
 
         displayNameEl.textContent = `${user.displayName} (@${user.name})`;
@@ -548,7 +559,7 @@ function openRoblox() {
 }
 
 // =============================
-// YOUTUBE (Invidious API)
+// YOUTUBE (Invidious API - bez proxy, z CORS)
 // =============================
 const INVIDIOUS_INSTANCES = [
     "https://invidious.snopyta.org",
