@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GameHub – naprawiony v3.3.3</title>
+    <title>GameHub – wersja bez proxy</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Segoe UI', Arial, sans-serif; background: #080b12; color: #fff; min-height: 100vh; }
@@ -51,7 +51,7 @@
 <body>
     <header>
         <div class="logo">⚡ Game<span>Hub</span></div>
-        <div class="status">v3.3.3</div>
+        <div class="status">v3.4 – direct API</div>
     </header>
     <div class="container">
         <div class="hero">
@@ -80,7 +80,7 @@
                     <button onclick="openRobloxProfile()">Otwórz profil Roblox</button>
                     <button onclick="openRobloxSearch()" class="secondary" style="margin-left:8px;">🌐 Szukaj na Roblox</button>
                 </div>
-                <p class="hint" id="robloxHint">Wyszukiwarka używa proxy – jeśli zawiedzie, spróbuj ponownie.</p>
+                <p class="hint" id="robloxHint">Łączenie bezpośrednio z API Roblox – może chwilę potrwać.</p>
             </div>
 
             <!-- YOUTUBE -->
@@ -113,87 +113,11 @@
             </div>
         </div>
     </div>
-    <footer>GameHub v3.3.3 • Nowe proxy i fallback</footer>
+    <footer>GameHub v3.4 • Bez zewnętrznych proxy</footer>
 
     <script>
         let currentUserId = null;
         const AVATAR_FALLBACK = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Crect width='90' height='90' fill='%23161d2c'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%236d778a' font-size='35'%3E%3F%3C/text%3E%3C/svg%3E";
-
-        // ===== LISTA PROXY (kolejność = priorytet) =====
-        const PROXY_LIST = [
-            { name: 'corsproxy', build: (url) => 'https://corsproxy.io/?url=' + encodeURIComponent(url) },
-            { name: 'corsproxy.org', build: (url) => 'https://corsproxy.org/?url=' + encodeURIComponent(url) },
-            { name: 'allorigins.get', build: (url) => 'https://api.allorigins.win/get?url=' + encodeURIComponent(url) },
-            { name: 'codetabs', build: (url) => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url) },
-            { name: 'thingproxy', build: (url) => 'https://thingproxy.freeboard.io/fetch/' + url }
-        ];
-
-        async function fetchViaProxy(targetUrl, options = {}) {
-            const method = (options.method || 'GET').toUpperCase();
-            const isPost = method === 'POST';
-            let lastError = null;
-
-            for (const proxy of PROXY_LIST) {
-                try {
-                    let proxyUrl = proxy.build(targetUrl);
-                    console.log(`[Proxy] Próba: ${proxy.name} → ${proxyUrl}`);
-
-                    const controller = new AbortController();
-                    const timeout = setTimeout(() => controller.abort(), 20000);
-
-                    const fetchOptions = {
-                        method: method,
-                        signal: controller.signal,
-                        headers: { 'Accept': 'application/json' },
-                    };
-
-                    if (isPost) {
-                        fetchOptions.headers['Content-Type'] = 'application/json';
-                        if (options.body) fetchOptions.body = options.body;
-                    }
-
-                    const res = await fetch(proxyUrl, fetchOptions);
-                    clearTimeout(timeout);
-
-                    if (!res.ok) {
-                        console.warn(`[Proxy] HTTP ${res.status} z ${proxy.name}`);
-                        lastError = new Error(`HTTP ${res.status} z ${proxy.name}`);
-                        continue;
-                    }
-
-                    // Jeśli proxy to allorigins.get, to zwraca JSON z polem contents
-                    if (proxy.name === 'allorigins.get') {
-                        const data = await res.json();
-                        if (data && data.contents) {
-                            // Zwracamy sztuczny Response z zawartością
-                            return new Response(data.contents, { status: 200, headers: { 'Content-Type': 'application/json' } });
-                        } else {
-                            throw new Error('Brak pola contents w odpowiedzi allorigins');
-                        }
-                    }
-
-                    console.log(`[Proxy] Sukces: ${proxy.name}`);
-                    return res;
-                } catch (err) {
-                    console.warn(`[Proxy] Błąd ${proxy.name}:`, err.message);
-                    lastError = err;
-                }
-            }
-            throw new Error('Wszystkie proxy zawiodły. Spróbuj ponownie później.');
-        }
-
-        async function getJSONviaProxy(url) {
-            const res = await fetchViaProxy(url);
-            return await res.json();
-        }
-
-        async function postJSONviaProxy(url, body) {
-            const res = await fetchViaProxy(url, {
-                method: 'POST',
-                body: JSON.stringify(body),
-            });
-            return await res.json();
-        }
 
         // =============================
         // ROBLOX
@@ -214,7 +138,7 @@
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner"></span>Szukam...';
             profile.style.display = "block";
-            displayNameEl.textContent = "Łączenie...";
+            displayNameEl.textContent = "Łączenie bezpośrednio z Roblox...";
             displayNameEl.className = "username";
             userIdEl.textContent = "ID: —";
             presenceEl.textContent = "";
@@ -222,25 +146,34 @@
             gameEl.textContent = "";
             avatarEl.src = AVATAR_FALLBACK;
             currentUserId = null;
-            hintEl.textContent = "🔄 Próba połączenia z Roblox...";
+            hintEl.textContent = "🔄 Bezpośrednie połączenie z API Roblox...";
 
             try {
-                // 1. Szukaj ID użytkownika
-                const searchUrl = `https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(username)}&limit=10`;
-                let data;
+                // Najpierw spróbujmy bezpośrednio (bez proxy)
+                let user = null;
                 try {
-                    data = await getJSONviaProxy(searchUrl);
+                    const searchUrl = `https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(username)}&limit=10`;
+                    const res = await fetch(searchUrl);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.data && data.data.length > 0) {
+                            user = data.data.find(u => u.name.toLowerCase() === username.toLowerCase()) || data.data[0];
+                        }
+                    }
                 } catch (e) {
-                    console.warn('Nowy endpoint nie działa, próbuję starszego...');
-                    const oldUrl = `https://api.roblox.com/users/get-by-username?username=${encodeURIComponent(username)}`;
-                    data = await getJSONviaProxy(oldUrl);
+                    console.warn('Bezpośrednie API Roblox nie działa, próbuję starszego...');
                 }
 
-                let user = null;
-                if (data.data && data.data.length > 0) {
-                    user = data.data.find(u => u.name.toLowerCase() === username.toLowerCase()) || data.data[0];
-                } else if (data.Id) {
-                    user = { id: data.Id, name: data.Username, displayName: data.Username };
+                // Jeśli nie udało się bezpośrednio, spróbuj starszego endpointu
+                if (!user) {
+                    const oldUrl = `https://api.roblox.com/users/get-by-username?username=${encodeURIComponent(username)}`;
+                    const res = await fetch(oldUrl);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.Id) {
+                            user = { id: data.Id, name: data.Username, displayName: data.Username };
+                        }
+                    }
                 }
 
                 if (!user || !user.id) {
@@ -263,22 +196,29 @@
 
                 hintEl.textContent = "✅ Znaleziono gracza. Pobieram status...";
 
-                // 2. Presence
+                // Presence – bezpośrednio (może nie działać z powodu CORS)
                 try {
                     const presenceUrl = "https://presence.roblox.com/v1/presence/users";
-                    const presData = await postJSONviaProxy(presenceUrl, { userIds: [user.id] });
-                    if (presData.userPresences && presData.userPresences.length > 0) {
-                        const p = presData.userPresences[0];
-                        switch (p.userPresenceType) {
-                            case 0: presenceEl.textContent = "⚪ OFFLINE"; presenceEl.className = "online gray"; break;
-                            case 1: presenceEl.textContent = "🟢 ONLINE"; presenceEl.className = "online green"; break;
-                            case 2: presenceEl.textContent = "🟢 W GRZE"; presenceEl.className = "online green"; gameEl.textContent = "🎮 " + (p.lastLocation || "Gra Roblox"); break;
-                            case 3: presenceEl.textContent = "🟡 ROBLOX STUDIO"; presenceEl.className = "online yellow"; break;
-                            default: presenceEl.textContent = "⚪ Nieznany"; presenceEl.className = "online gray";
+                    const presRes = await fetch(presenceUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userIds: [user.id] })
+                    });
+                    if (presRes.ok) {
+                        const presData = await presRes.json();
+                        if (presData.userPresences && presData.userPresences.length > 0) {
+                            const p = presData.userPresences[0];
+                            switch (p.userPresenceType) {
+                                case 0: presenceEl.textContent = "⚪ OFFLINE"; presenceEl.className = "online gray"; break;
+                                case 1: presenceEl.textContent = "🟢 ONLINE"; presenceEl.className = "online green"; break;
+                                case 2: presenceEl.textContent = "🟢 W GRZE"; presenceEl.className = "online green"; gameEl.textContent = "🎮 " + (p.lastLocation || "Gra Roblox"); break;
+                                case 3: presenceEl.textContent = "🟡 ROBLOX STUDIO"; presenceEl.className = "online yellow"; break;
+                                default: presenceEl.textContent = "⚪ Nieznany"; presenceEl.className = "online gray";
+                            }
+                            hintEl.textContent = "✅ Wszystko gotowe!";
                         }
-                        hintEl.textContent = "✅ Wszystko gotowe!";
                     } else {
-                        throw new Error("Brak danych");
+                        throw new Error('HTTP ' + presRes.status);
                     }
                 } catch (presenceErr) {
                     console.warn("Presence error:", presenceErr);
@@ -292,7 +232,7 @@
                 displayNameEl.textContent = "Błąd połączenia z Roblox API.";
                 displayNameEl.className = "username red";
                 userIdEl.textContent = error.message || "Sprawdź konsolę (F12).";
-                hintEl.textContent = "❌ " + error.message + ". Spróbuj ponownie.";
+                hintEl.textContent = "❌ " + error.message + ". Możesz otworzyć profil ręcznie poniżej.";
             } finally {
                 btn.disabled = false;
                 btn.textContent = "🔎 Szukaj";
@@ -318,28 +258,31 @@
             btn.innerHTML = '<span class="spinner"></span>Szukam...';
             resultsEl.style.display = "block";
             resultsEl.innerHTML = '<div class="empty-state"><span class="spinner"></span>Wyszukiwanie...</div>';
-            hintEl.textContent = "🔄 Łączenie z API YouTube...";
+            hintEl.textContent = "🔄 Bezpośrednie połączenie z API YouTube...";
 
             try {
                 let items = [];
 
-                // Próba 1: LemnosLife przez proxy
+                // Próba 1: LemnosLife bezpośrednio (ma CORS)
                 try {
                     const url = `https://yt.lemnoslife.com/v3/search?part=snippet&maxResults=12&q=${encodeURIComponent(query)}&type=video`;
-                    const data = await getJSONviaProxy(url);
-                    if (data.items) {
-                        items = data.items.map(item => ({
-                            videoId: item.id?.videoId,
-                            title: item.snippet?.title || 'Bez tytułu',
-                            author: item.snippet?.channelTitle || 'Nieznany',
-                            thumb: item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || ''
-                        }));
+                    const res = await fetch(url);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.items) {
+                            items = data.items.map(item => ({
+                                videoId: item.id?.videoId,
+                                title: item.snippet?.title || 'Bez tytułu',
+                                author: item.snippet?.channelTitle || 'Nieznany',
+                                thumb: item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || ''
+                            }));
+                        }
                     }
                 } catch (e) {
-                    console.warn('LemnosLife nie działa:', e);
+                    console.warn('LemnosLife bezpośrednio nie działa:', e);
                 }
 
-                // Próba 2: Invidious bezpośrednio (może ma CORS)
+                // Próba 2: Invidious bezpośrednio
                 if (items.length === 0) {
                     try {
                         const invUrl = `https://inv.tux.pizza/api/v1/search?q=${encodeURIComponent(query)}&type=video`;
@@ -363,38 +306,39 @@
                             }
                         }
                     } catch (e) {
-                        console.warn('Bezpośredni Invidious nie działa:', e);
+                        console.warn('Invidious bezpośrednio nie działa:', e);
                     }
                 }
 
-                // Próba 3: Invidious przez proxy
+                // Próba 3: Inna instancja Invidious
                 if (items.length === 0) {
                     try {
-                        const invUrl = `https://inv.tux.pizza/api/v1/search?q=${encodeURIComponent(query)}&type=video`;
-                        const data = await getJSONviaProxy(invUrl);
-                        if (Array.isArray(data)) {
-                            items = data.map(item => ({
-                                videoId: item.videoId,
-                                title: item.title,
-                                author: item.author,
-                                thumb: item.videoThumbnails?.[0]?.url || ''
-                            }));
-                        } else if (data.videos) {
-                            items = data.videos.map(item => ({
-                                videoId: item.videoId,
-                                title: item.title,
-                                author: item.author,
-                                thumb: item.videoThumbnails?.[0]?.url || ''
-                            }));
+                        const invUrl = `https://yewtu.be/api/v1/search?q=${encodeURIComponent(query)}&type=video`;
+                        const res = await fetch(invUrl);
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (Array.isArray(data)) {
+                                items = data.map(item => ({
+                                    videoId: item.videoId,
+                                    title: item.title,
+                                    author: item.author,
+                                    thumb: item.videoThumbnails?.[0]?.url || ''
+                                }));
+                            }
                         }
                     } catch (e) {
-                        console.warn('Invidious przez proxy nie działa:', e);
+                        console.warn('Druga instancja Invidious nie działa:', e);
                     }
                 }
 
                 if (items.length === 0) {
-                    resultsEl.innerHTML = '<div class="empty-state">Brak wyników dla: ' + escapeHtml(query) + '</div>';
-                    hintEl.textContent = "❌ Brak wyników.";
+                    resultsEl.innerHTML = '<div class="empty-state">Nie udało się pobrać wyników. Kliknij poniżej, aby otworzyć YouTube.</div>';
+                    hintEl.textContent = "❌ Nie udało się połączyć. Otwórz YouTube ręcznie.";
+                    // Dodaj przycisk otwierający YouTube
+                    const btnDiv = document.createElement('div');
+                    btnDiv.style.marginTop = '15px';
+                    btnDiv.innerHTML = `<button onclick="openYouTubeSearch()">🔗 Otwórz YouTube</button>`;
+                    resultsEl.appendChild(btnDiv);
                 } else {
                     let html = '';
                     items.forEach(item => {
@@ -467,7 +411,7 @@
             } catch { document.getElementById("toolResult").textContent = "❌ Nie udało się pobrać IP."; }
         }
         function about() {
-            document.getElementById("toolResult").textContent = "ℹ️ GameHub v3.3.3 – naprawione proxy";
+            document.getElementById("toolResult").textContent = "ℹ️ GameHub v3.4 – bez zewnętrznych proxy";
         }
     </script>
 </body>
