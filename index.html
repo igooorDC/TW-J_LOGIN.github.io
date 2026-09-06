@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GameHub – wersja odporna na CORS</title>
+    <title>GameHub – poprawka DNS</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Segoe UI', Arial, sans-serif; background: #080b12; color: #fff; min-height: 100vh; }
@@ -51,7 +51,7 @@
 <body>
     <header>
         <div class="logo">⚡ Game<span>Hub</span></div>
-        <div class="status">v5.0 stable</div>
+        <div class="status">v8.2</div>
     </header>
     <div class="container">
         <div class="hero">
@@ -80,26 +80,26 @@
                     <button onclick="openRobloxProfile()">Otwórz profil Roblox</button>
                     <button onclick="openRobloxSearch()" class="secondary" style="margin-left:8px;">🌐 Szukaj na Roblox</button>
                 </div>
-                <p class="hint" id="robloxHint">Automatyczne wyszukiwanie może nie działać z powodu CORS – użyj przycisków poniżej.</p>
+                <p class="hint" id="robloxHint">Wyszukiwanie działa po włączeniu rozszerzenia Allow CORS.</p>
             </div>
 
             <!-- YOUTUBE -->
             <div class="card full">
-                <h2>🎵 YouTube Music Player</h2>
+                <h2>🎵 YouTube Music Search</h2>
                 <div class="input-row">
-                    <input id="ytDirectUrl" type="text" placeholder="Wklej link lub ID YouTube..." onkeydown="if(event.key==='Enter')playDirect()">
-                    <button onclick="playDirect()">▶ Odtwórz</button>
+                    <input id="ytQuery" type="text" placeholder="Wpisz tytuł piosenki lub artystę..." onkeydown="if(event.key==='Enter')searchYouTube()">
+                    <button onclick="searchYouTube()" id="ytBtn">🔎 Szukaj</button>
                 </div>
                 <div class="input-row" style="margin-top:10px;">
-                    <input id="ytQuery" type="text" placeholder="...lub wpisz tytuł, aby otworzyć wyniki" onkeydown="if(event.key==='Enter')openYouTubeSearch()">
-                    <button onclick="openYouTubeSearch()" class="secondary">🔎 Szukaj na YouTube</button>
+                    <input id="ytDirectUrl" type="text" placeholder="...lub wklej link/ID YouTube" onkeydown="if(event.key==='Enter')playDirect()">
+                    <button onclick="playDirect()" class="secondary">▶ Odtwórz z linku</button>
                 </div>
                 <div id="ytResults" class="yt-results"></div>
                 <div id="ytPlayerWrap" class="yt-player-wrap">
                     <div class="yt-now-playing" id="ytNowPlaying">—</div>
                     <iframe id="ytFrame" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                 </div>
-                <p class="hint" id="ytHint">Wklej link lub ID, aby odtworzyć. Wyszukiwarka otwiera wyniki w nowej karcie.</p>
+                <p class="hint" id="ytHint">Wyniki wyszukiwania pojawią się powyżej.</p>
             </div>
 
             <!-- QUICK TOOLS -->
@@ -117,14 +117,14 @@
             </div>
         </div>
     </div>
-    <footer>GameHub v5.0 • Odporne na CORS</footer>
+    <footer>GameHub v8.2 • Official Roblox domains</footer>
 
     <script>
         let currentUserId = null;
         const AVATAR_FALLBACK = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Crect width='90' height='90' fill='%23161d2c'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%236d778a' font-size='35'%3E%3F%3C/text%3E%3C/svg%3E";
 
         // =============================
-        // ROBLOX – tryb ręczny z opcjonalnym API
+        // ROBLOX – oficjalne API
         // =============================
         async function searchPlayer() {
             const username = document.getElementById("username").value.trim();
@@ -142,7 +142,7 @@
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner"></span>Szukam...';
             profile.style.display = "block";
-            displayNameEl.textContent = "Próba połączenia...";
+            displayNameEl.textContent = "Łączenie z Roblox API...";
             displayNameEl.className = "username";
             userIdEl.textContent = "ID: —";
             presenceEl.textContent = "";
@@ -150,106 +150,142 @@
             gameEl.textContent = "";
             avatarEl.src = AVATAR_FALLBACK;
             currentUserId = null;
-            hintEl.textContent = "🔄 Automatyczne wyszukiwanie może nie zadziałać. Jeśli nic się nie pojawi, użyj przycisku 'Otwórz profil Roblox' poniżej.";
+            hintEl.textContent = "🔄 Pobieranie danych...";
 
-            // Szybka próba przez RoProxy – jeśli nie, pokaż błąd i instrukcję
             try {
-                const url = `https://api.roproxy.com/users/v1/users/search?keyword=${encodeURIComponent(username)}&limit=10`;
-                const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.data && data.data.length > 0) {
-                        const user = data.data.find(u => u.name.toLowerCase() === username.toLowerCase()) || data.data[0];
-                        currentUserId = user.id;
-                        displayNameEl.textContent = `${user.displayName || user.name} (@${user.name})`;
-                        displayNameEl.className = "username";
-                        userIdEl.textContent = "ID: " + user.id;
-                        avatarEl.src = `https://www.roblox.com/headshot-thumbnail/image?userId=${user.id}&width=180&height=180&format=png`;
-                        avatarEl.onerror = () => { avatarEl.src = AVATAR_FALLBACK; };
-                        hintEl.textContent = "✅ Znaleziono gracza. Status może nie być dostępny.";
-                        // Spróbuj presence, ale nie czekaj długo
-                        try {
-                            const presenceUrl = `https://api.roproxy.com/presence/v1/presence/users`;
-                            const presRes = await fetch(presenceUrl, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ userIds: [user.id] }),
-                                signal: AbortSignal.timeout(5000)
-                            });
-                            if (presRes.ok) {
-                                const presData = await presRes.json();
-                                if (presData.userPresences && presData.userPresences.length > 0) {
-                                    const p = presData.userPresences[0];
-                                    switch (p.userPresenceType) {
-                                        case 0: presenceEl.textContent = "⚪ OFFLINE"; presenceEl.className = "online gray"; break;
-                                        case 1: presenceEl.textContent = "🟢 ONLINE"; presenceEl.className = "online green"; break;
-                                        case 2: presenceEl.textContent = "🟢 W GRZE"; presenceEl.className = "online green"; gameEl.textContent = "🎮 " + (p.lastLocation || "Gra Roblox"); break;
-                                        case 3: presenceEl.textContent = "🟡 ROBLOX STUDIO"; presenceEl.className = "online yellow"; break;
-                                        default: presenceEl.textContent = "⚪ Nieznany"; presenceEl.className = "online gray";
-                                    }
-                                }
-                            }
-                        } catch (presenceErr) {
-                            presenceEl.textContent = "⚪ Status niedostępny";
-                            presenceEl.className = "online gray";
-                        }
-                    } else {
-                        displayNameEl.textContent = "Nie znaleziono użytkownika.";
-                        displayNameEl.className = "username red";
-                        hintEl.textContent = "❌ Brak wyników. Kliknij 'Otwórz profil Roblox' aby zobaczyć profil.";
-                    }
-                } else {
-                    throw new Error('HTTP ' + res.status);
+                // Oficjalne API Roblox – działa z rozszerzeniem Allow CORS
+                const searchUrl = `https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(username)}&limit=10`;
+                const res = await fetch(searchUrl);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                
+                if (!data.data || data.data.length === 0) {
+                    displayNameEl.textContent = "Nie znaleziono użytkownika.";
+                    displayNameEl.className = "username red";
+                    userIdEl.textContent = "ID: —";
+                    hintEl.textContent = "❌ Brak wyników.";
+                    btn.disabled = false;
+                    btn.textContent = "🔎 Szukaj";
+                    return;
                 }
+
+                const user = data.data.find(u => u.name.toLowerCase() === username.toLowerCase()) || data.data[0];
+                currentUserId = user.id;
+                displayNameEl.textContent = `${user.displayName || user.name} (@${user.name})`;
+                displayNameEl.className = "username";
+                userIdEl.textContent = "ID: " + user.id;
+
+                avatarEl.src = `https://www.roblox.com/headshot-thumbnail/image?userId=${user.id}&width=180&height=180&format=png`;
+                avatarEl.onerror = () => { avatarEl.src = AVATAR_FALLBACK; };
+
+                hintEl.textContent = "✅ Znaleziono gracza. Pobieram status...";
+
+                // Presence – oficjalne API
+                try {
+                    const presenceUrl = `https://presence.roblox.com/v1/presence/users`;
+                    const presRes = await fetch(presenceUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userIds: [user.id] })
+                    });
+                    if (presRes.ok) {
+                        const presData = await presRes.json();
+                        if (presData.userPresences && presData.userPresences.length > 0) {
+                            const p = presData.userPresences[0];
+                            switch (p.userPresenceType) {
+                                case 0: presenceEl.textContent = "⚪ OFFLINE"; presenceEl.className = "online gray"; break;
+                                case 1: presenceEl.textContent = "🟢 ONLINE"; presenceEl.className = "online green"; break;
+                                case 2: presenceEl.textContent = "🟢 W GRZE"; presenceEl.className = "online green"; gameEl.textContent = "🎮 " + (p.lastLocation || "Gra Roblox"); break;
+                                case 3: presenceEl.textContent = "🟡 ROBLOX STUDIO"; presenceEl.className = "online yellow"; break;
+                                default: presenceEl.textContent = "⚪ Nieznany"; presenceEl.className = "online gray";
+                            }
+                            hintEl.textContent = "✅ Gotowe!";
+                        }
+                    }
+                } catch (presenceErr) {
+                    console.warn('Presence error:', presenceErr);
+                    presenceEl.textContent = "⚪ Status niedostępny";
+                    presenceEl.className = "online gray";
+                    hintEl.textContent = "⚠️ Gracz znaleziony, ale status nie jest dostępny.";
+                }
+
             } catch (error) {
-                console.warn('Roblox API error:', error);
-                displayNameEl.textContent = "Automatyczne wyszukiwanie nie powiodło się.";
-                displayNameEl.className = "username yellow";
-                userIdEl.textContent = "";
-                hintEl.textContent = "⚠️ " + (error.message || "Błąd CORS") + ". Użyj przycisku 'Otwórz profil Roblox' lub 'Szukaj na Roblox' poniżej.";
+                console.error("[Roblox] Błąd:", error);
+                displayNameEl.textContent = "Błąd połączenia z Roblox API.";
+                displayNameEl.className = "username red";
+                userIdEl.textContent = error.message || "Sprawdź konsolę (F12).";
+                hintEl.textContent = "❌ " + error.message;
             } finally {
                 btn.disabled = false;
                 btn.textContent = "🔎 Szukaj";
             }
         }
 
-        function openRobloxProfile() { 
-            if (currentUserId) {
-                window.open("https://www.roblox.com/users/" + currentUserId + "/profile", "_blank");
-            } else {
-                const username = document.getElementById("username").value.trim();
-                if (username) {
-                    window.open("https://www.roblox.com/search/users?keyword=" + encodeURIComponent(username), "_blank");
-                }
-            }
-        }
-
-        function openRobloxSearch() { 
-            const u = document.getElementById("username").value.trim(); 
-            if (u) window.open("https://www.roblox.com/search/users?keyword=" + encodeURIComponent(u), "_blank"); 
-        }
-
+        function openRobloxProfile() { if (currentUserId) window.open("https://www.roblox.com/users/" + currentUserId + "/profile", "_blank"); }
+        function openRobloxSearch() { const u = document.getElementById("username").value.trim(); if (u) window.open("https://www.roblox.com/search/users?keyword=" + encodeURIComponent(u), "_blank"); }
         function openRoblox() { window.open("https://www.roblox.com/", "_blank"); }
 
         // =============================
-        // YOUTUBE – odtwarzanie z linku/ID + otwieranie wyszukiwarki
+        // YOUTUBE
         // =============================
+        async function searchYouTube() {
+            const query = document.getElementById("ytQuery").value.trim();
+            if (!query) { alert("Wpisz czego szukasz."); return; }
+
+            const btn = document.getElementById("ytBtn");
+            const resultsEl = document.getElementById("ytResults");
+            const hintEl = document.getElementById("ytHint");
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span>Szukam...';
+            resultsEl.style.display = "block";
+            resultsEl.innerHTML = '<div class="empty-state"><span class="spinner"></span>Wyszukiwanie...</div>';
+            hintEl.textContent = "🔄 Łączenie z YouTube API...";
+
+            try {
+                // LemnosLife API – wymaga CORS, ale z rozszerzeniem działa
+                const url = `https://yt.lemnoslife.com/v3/search?part=snippet&maxResults=12&q=${encodeURIComponent(query)}&type=video`;
+                const res = await fetch(url);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+
+                if (!data.items || data.items.length === 0) {
+                    resultsEl.innerHTML = '<div class="empty-state">Brak wyników dla: ' + escapeHtml(query) + '</div>';
+                    hintEl.textContent = "❌ Brak wyników.";
+                } else {
+                    let html = '';
+                    data.items.forEach(item => {
+                        const videoId = item.id?.videoId;
+                        if (!videoId) return;
+                        const thumb = item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || '';
+                        const title = item.snippet?.title || 'Bez tytułu';
+                        const author = item.snippet?.channelTitle || 'Nieznany';
+                        html += `
+                            <div class="yt-item" onclick="playYouTube('${videoId}', '${escapeHtml(title)}', '${escapeHtml(author)}')">
+                                <img class="yt-thumb" src="${thumb}" onerror="this.style.display='none'">
+                                <div class="yt-info"><div class="yt-title">${escapeHtml(title)}</div><div class="yt-author">${escapeHtml(author)}</div></div>
+                            </div>`;
+                    });
+                    resultsEl.innerHTML = html;
+                    hintEl.textContent = "✅ Kliknij utwór, aby odtworzyć.";
+                }
+            } catch (error) {
+                console.error("[YouTube] Błąd:", error);
+                resultsEl.innerHTML = '<div class="empty-state" style="color:#ff6b6b">Błąd: ' + escapeHtml(error.message) + '</div>';
+                hintEl.textContent = "❌ " + error.message;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "🔎 Szukaj";
+            }
+        }
+
         function playDirect() {
             const input = document.getElementById("ytDirectUrl");
             const value = input.value.trim();
             if (!value) { alert("Wklej link lub ID YouTube."); return; }
-            
             let videoId = value;
-            // Wyciągnij ID z różnych formatów linku
-            const patterns = [
-                /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/,
-                /^[a-zA-Z0-9_-]{11}$/
-            ];
-            for (const pattern of patterns) {
-                const match = value.match(pattern);
-                if (match) { videoId = match[1] || match[0]; break; }
-            }
-            
+            const match = value.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+            if (match) videoId = match[1];
             if (videoId.length === 11) {
                 const wrap = document.getElementById("ytPlayerWrap");
                 const frame = document.getElementById("ytFrame");
@@ -260,17 +296,23 @@
                 wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 input.value = '';
             } else {
-                alert('Nieprawidłowy link lub ID YouTube. Podaj poprawny format (11 znaków).');
+                alert('Nieprawidłowy link lub ID YouTube.');
             }
+        }
+
+        function playYouTube(videoId, title, author) {
+            const wrap = document.getElementById("ytPlayerWrap");
+            const frame = document.getElementById("ytFrame");
+            const nowPlaying = document.getElementById("ytNowPlaying");
+            frame.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+            nowPlaying.textContent = `▶ ${title} — ${author}`;
+            wrap.style.display = "block";
+            wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
         function openYouTubeSearch() {
             const q = document.getElementById("ytQuery").value.trim();
-            if (q) {
-                window.open("https://www.youtube.com/results?search_query=" + encodeURIComponent(q), "_blank");
-            } else {
-                window.open("https://www.youtube.com/", "_blank");
-            }
+            window.open("https://www.youtube.com/results?search_query=" + encodeURIComponent(q), "_blank");
         }
 
         function escapeHtml(text) {
@@ -299,12 +341,10 @@
                 const r = await fetch("https://api.ipify.org?format=json");
                 const d = await r.json();
                 document.getElementById("toolResult").textContent = "🌐 Twoje IP: " + d.ip;
-            } catch { 
-                document.getElementById("toolResult").textContent = "❌ Nie udało się pobrać IP. (Może być zablokowane)"; 
-            }
+            } catch { document.getElementById("toolResult").textContent = "❌ Nie udało się pobrać IP."; }
         }
         function about() {
-            document.getElementById("toolResult").textContent = "ℹ️ GameHub v5.0 – stabilna wersja odporna na CORS.";
+            document.getElementById("toolResult").textContent = "ℹ️ GameHub v8.2 – oficjalne API Roblox";
         }
     </script>
 </body>
