@@ -107,6 +107,12 @@ button:disabled {
     background: #1a3a5c;
     cursor: not-allowed;
 }
+button.secondary {
+    background: #1a3a5c;
+}
+button.secondary:hover {
+    background: #254a70;
+}
 .profile {
     display: none;
     margin-top: 20px;
@@ -181,8 +187,63 @@ button:disabled {
     word-break: break-all;
 }
 
-/* YouTube */
-.youtube-wrap {
+/* YouTube Results */
+.yt-results {
+    margin-top: 15px;
+    max-height: 350px;
+    overflow-y: auto;
+    border-radius: 10px;
+    background: #080c15;
+    border: 1px solid #1a2332;
+    display: none;
+}
+.yt-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: background 0.15s;
+    border-bottom: 1px solid #121820;
+}
+.yt-item:last-child {
+    border-bottom: none;
+}
+.yt-item:hover {
+    background: #121a2b;
+}
+.yt-thumb {
+    width: 100px;
+    height: 75px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: #161d2c;
+    flex-shrink: 0;
+}
+.yt-info {
+    flex: 1;
+    min-width: 0;
+}
+.yt-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.yt-author {
+    font-size: 12px;
+    color: #6d778a;
+    margin-top: 3px;
+}
+.yt-duration {
+    font-size: 12px;
+    color: #4a5568;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+.yt-player-wrap {
     margin-top: 15px;
     display: none;
     border-radius: 12px;
@@ -190,18 +251,33 @@ button:disabled {
     border: 1px solid #20283a;
     background: #000;
 }
-.youtube-wrap iframe {
+.yt-player-wrap iframe {
     width: 100%;
-    height: 420px;
+    height: 400px;
     display: block;
     border: none;
+}
+.yt-now-playing {
+    padding: 10px 14px;
+    background: #0e131f;
+    border-bottom: 1px solid #20283a;
+    font-size: 14px;
+    color: #8791a5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.empty-state {
+    text-align: center;
+    padding: 30px;
+    color: #596477;
+    font-size: 14px;
 }
 .hint {
     margin-top: 10px;
     color: #596477;
     font-size: 13px;
 }
-
 .spinner {
     display: inline-block;
     width: 16px;
@@ -242,8 +318,12 @@ footer {
         flex-direction: column;
         text-align: center;
     }
-    .youtube-wrap iframe {
+    .yt-player-wrap iframe {
         height: 220px;
+    }
+    .yt-thumb {
+        width: 80px;
+        height: 60px;
     }
 }
 </style>
@@ -251,7 +331,7 @@ footer {
 <body>
 <header>
     <div class="logo">⚡ Game<span>Hub</span></div>
-    <div class="status">v3.0</div>
+    <div class="status">v3.2</div>
 </header>
 <div class="container">
     <div class="hero">
@@ -279,11 +359,8 @@ footer {
                 <div id="game" class="game"></div>
                 <br>
                 <button onclick="openRobloxProfile()">Otwórz profil Roblox</button>
-                <button onclick="openRobloxProfileDirect()" style="margin-left:10px;background:#1a3a5c;">🌐 Otwórz w nowej karcie</button>
+                <button onclick="openRobloxSearch()" class="secondary" style="margin-left:8px;">🌐 Szukaj na Roblox</button>
             </div>
-            <p class="hint" id="robloxHint" style="display:none;margin-top:10px;">
-                Jeśli wyszukiwanie nie działa, sprawdź czy nie masz włączonego AdBlockera lub Pi-hole blokującego <code>corsproxy.io</code>.
-            </p>
         </div>
 
         <!-- YOUTUBE -->
@@ -294,10 +371,12 @@ footer {
                     onkeydown="if(event.key==='Enter')searchYouTube()">
                 <button onclick="searchYouTube()" id="ytBtn">🔎 Szukaj</button>
             </div>
-            <div id="ytWrap" class="youtube-wrap">
+            <div id="ytResults" class="yt-results"></div>
+            <div id="ytPlayerWrap" class="yt-player-wrap">
+                <div class="yt-now-playing" id="ytNowPlaying">—</div>
                 <iframe id="ytFrame" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
             </div>
-            <p class="hint">Wpisz nazwę utworu i kliknij Szukaj. Player YouTube załaduje playlistę wyników.</p>
+            <p class="hint" id="ytHint">Wyniki wyszukiwania pojawią się powyżej. Kliknij utwór, aby odtworzyć.</p>
         </div>
 
         <!-- QUICK TOOLS -->
@@ -315,7 +394,7 @@ footer {
         </div>
     </div>
 </div>
-<footer>GameHub v3.0 • Made with HTML / CSS / JavaScript</footer>
+<footer>GameHub v3.2 • Made with HTML / CSS / JavaScript</footer>
 
 <script>
 let currentUserId = null;
@@ -338,7 +417,6 @@ async function searchPlayer() {
     const presenceEl = document.getElementById("presence");
     const gameEl = document.getElementById("game");
     const avatarEl = document.getElementById("avatar");
-    const hintEl = document.getElementById("robloxHint");
 
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span>Szukam...';
@@ -351,24 +429,30 @@ async function searchPlayer() {
     gameEl.textContent = "";
     avatarEl.src = AVATAR_FALLBACK;
     currentUserId = null;
-    hintEl.style.display = "none";
 
     try {
-        // Używamy corsproxy.io (najpopularniejsze, działające proxy) + GET search
-        const targetUrl = `https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(username)}&limit=10`;
-        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+        // POST na usernames/users - dokładne dopasowanie, nie szukanie po słowach kluczowych
+        const targetUrl = "https://users.roblox.com/v1/usernames/users";
+        const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(targetUrl);
 
-        console.log("[Roblox] Fetching:", proxyUrl);
+        console.log("[Roblox] POST", proxyUrl);
 
         const res = await fetch(proxyUrl, {
-            method: "GET",
-            headers: { "Accept": "application/json" }
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            },
+            body: JSON.stringify({
+                usernames: [username],
+                excludeBannedUsers: false
+            })
         });
 
-        console.log("[Roblox] Response status:", res.status);
+        console.log("[Roblox] Status:", res.status);
 
         if (!res.ok) {
-            throw new Error(`HTTP ${res.status}`);
+            throw new Error("HTTP " + res.status);
         }
 
         const data = await res.json();
@@ -382,19 +466,19 @@ async function searchPlayer() {
             return;
         }
 
-        // Szukamy dokładnego dopasowania lub bierzemy pierwszy
-        const user = data.data.find(u => u.name.toLowerCase() === username.toLowerCase()) || data.data[0];
+        const user = data.data[0];
         currentUserId = user.id;
 
         displayNameEl.textContent = `${user.displayName} (@${user.name})`;
         userIdEl.textContent = "ID: " + user.id;
 
-        // Avatar - bezpośredni URL Roblox (dla <img> CORS nie jest potrzebny)
+        // Avatar
         avatarEl.src = `https://www.roblox.com/headshot-thumbnail/image?userId=${user.id}&width=180&height=180&format=png`;
         avatarEl.onerror = () => { avatarEl.src = AVATAR_FALLBACK; };
 
-        // Spróbuj pobrać presence (opcjonalne, może nie działać przez proxy)
-        getPresence(user.id).catch(() => {
+        // Presence (opcjonalne)
+        getPresence(user.id).catch(err => {
+            console.log("[Roblox] Presence skipped:", err);
             presenceEl.textContent = "⚪ Status niedostępny";
             presenceEl.className = "online gray";
         });
@@ -403,8 +487,7 @@ async function searchPlayer() {
         console.error("[Roblox] Error:", error);
         displayNameEl.textContent = "Błąd połączenia z Roblox API.";
         displayNameEl.className = "username red";
-        userIdEl.textContent = error.message || "Sprawdź konsolę (F12) po szczegóły.";
-        hintEl.style.display = "block";
+        userIdEl.textContent = error.message || "Sprawdź konsolę (F12).";
     } finally {
         btn.disabled = false;
         btn.textContent = "🔎 Szukaj";
@@ -412,45 +495,40 @@ async function searchPlayer() {
 }
 
 async function getPresence(userId) {
-    try {
-        const targetUrl = `https://presence.roblox.com/v1/presence/users`;
-        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+    const targetUrl = "https://presence.roblox.com/v1/presence/users";
+    const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(targetUrl);
 
-        const res = await fetch(proxyUrl, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Accept": "application/json"
-            },
-            body: JSON.stringify({ userIds: [userId] })
-        });
+    const res = await fetch(proxyUrl, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        },
+        body: JSON.stringify({ userIds: [userId] })
+    });
 
-        if (!res.ok) throw new Error("HTTP " + res.status);
+    if (!res.ok) throw new Error("HTTP " + res.status);
 
-        const data = await res.json();
-        if (!data.userPresences || data.userPresences.length === 0) return;
+    const data = await res.json();
+    if (!data.userPresences || data.userPresences.length === 0) return;
 
-        const p = data.userPresences[0];
-        const presenceEl = document.getElementById("presence");
-        const gameEl = document.getElementById("game");
+    const p = data.userPresences[0];
+    const presenceEl = document.getElementById("presence");
+    const gameEl = document.getElementById("game");
 
-        if (p.userPresenceType === 0) {
-            presenceEl.textContent = "⚪ OFFLINE";
-            presenceEl.className = "online gray";
-        } else if (p.userPresenceType === 1) {
-            presenceEl.textContent = "🟢 ONLINE";
-            presenceEl.className = "online green";
-        } else if (p.userPresenceType === 2) {
-            presenceEl.textContent = "🟢 W GRZE";
-            presenceEl.className = "online green";
-            gameEl.textContent = "🎮 " + (p.lastLocation || "Gra Roblox");
-        } else if (p.userPresenceType === 3) {
-            presenceEl.textContent = "🟡 ROBLOX STUDIO";
-            presenceEl.className = "online yellow";
-        }
-    } catch (e) {
-        console.log("[Roblox] Presence error:", e);
-        throw e;
+    if (p.userPresenceType === 0) {
+        presenceEl.textContent = "⚪ OFFLINE";
+        presenceEl.className = "online gray";
+    } else if (p.userPresenceType === 1) {
+        presenceEl.textContent = "🟢 ONLINE";
+        presenceEl.className = "online green";
+    } else if (p.userPresenceType === 2) {
+        presenceEl.textContent = "🟢 W GRZE";
+        presenceEl.className = "online green";
+        gameEl.textContent = "🎮 " + (p.lastLocation || "Gra Roblox");
+    } else if (p.userPresenceType === 3) {
+        presenceEl.textContent = "🟡 ROBLOX STUDIO";
+        presenceEl.className = "online yellow";
     }
 }
 
@@ -459,7 +537,7 @@ function openRobloxProfile() {
     window.open("https://www.roblox.com/users/" + currentUserId + "/profile", "_blank");
 }
 
-function openRobloxProfileDirect() {
+function openRobloxSearch() {
     const username = document.getElementById("username").value.trim();
     if (!username) return;
     window.open("https://www.roblox.com/search/users?keyword=" + encodeURIComponent(username), "_blank");
@@ -470,21 +548,134 @@ function openRoblox() {
 }
 
 // =============================
-// YOUTUBE (iframe - zero API)
+// YOUTUBE (Invidious API)
 // =============================
-function searchYouTube() {
+const INVIDIOUS_INSTANCES = [
+    "https://invidious.snopyta.org",
+    "https://y.com.sb",
+    "https://invidious.perennialte.ch",
+    "https://iv.nboeck.de",
+    "https://iv.datura.network"
+];
+
+async function searchYouTube() {
     const query = document.getElementById("ytQuery").value.trim();
     if (!query) {
         alert("Wpisz czego szukasz.");
         return;
     }
 
-    const wrap = document.getElementById("ytWrap");
-    const frame = document.getElementById("ytFrame");
+    const btn = document.getElementById("ytBtn");
+    const resultsEl = document.getElementById("ytResults");
+    const hintEl = document.getElementById("ytHint");
 
-    // listType=search to oficjalna funkcja embed YouTube - nie wymaga żadnego API
-    frame.src = `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(query)}&autoplay=1&rel=0`;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Szukam...';
+    resultsEl.style.display = "block";
+    resultsEl.innerHTML = '<div class="empty-state"><span class="spinner"></span>Wyszukiwanie...</div>';
+    hintEl.textContent = "Próbuję połączyć się z Invidious API...";
+
+    let lastError = null;
+
+    for (const instance of INVIDIOUS_INSTANCES) {
+        try {
+            const url = `${instance}/api/v1/search?q=${encodeURIComponent(query)}&type=video`;
+            console.log("[YouTube] Trying", url);
+
+            const res = await fetch(url, {
+                method: "GET",
+                headers: { "Accept": "application/json" }
+            });
+
+            if (!res.ok) {
+                console.log("[YouTube]", instance, "HTTP", res.status);
+                continue;
+            }
+
+            const data = await res.json();
+            console.log("[YouTube]", instance, "results:", data.length);
+
+            if (!data || data.length === 0) {
+                resultsEl.innerHTML = '<div class="empty-state">Nie znaleziono wyników.</div>';
+                btn.disabled = false;
+                btn.textContent = "🔎 Szukaj";
+                return;
+            }
+
+            // Renderuj wyniki
+            let html = '';
+            data.slice(0, 15).forEach(item => {
+                const videoId = item.videoId;
+                const thumb = item.videoThumbnails?.[0]?.url || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
+                const duration = item.lengthSeconds > 0 ? formatTime(item.lengthSeconds) : '';
+                const title = item.title || 'Bez tytułu';
+                const author = item.author || 'Nieznany';
+
+                html += `
+                    <div class="yt-item" onclick="playYouTube('${videoId}', '${escapeHtml(title)}', '${escapeHtml(author)}')">
+                        <img class="yt-thumb" src="${thumb}" alt="" onerror="this.src='${AVATAR_FALLBACK}'">
+                        <div class="yt-info">
+                            <div class="yt-title">${escapeHtml(title)}</div>
+                            <div class="yt-author">${escapeHtml(author)}</div>
+                        </div>
+                        <div class="yt-duration">${duration}</div>
+                    </div>
+                `;
+            });
+
+            resultsEl.innerHTML = html;
+            hintEl.textContent = "Kliknij utwór, aby odtworzyć w playerze poniżej.";
+            btn.disabled = false;
+            btn.textContent = "🔎 Szukaj";
+            return;
+
+        } catch (err) {
+            console.log("[YouTube]", instance, "failed:", err.message);
+            lastError = err;
+        }
+    }
+
+    // Wszystkie instancje padły
+    console.error("[YouTube] All instances failed:", lastError);
+    resultsEl.innerHTML = `
+        <div class="empty-state" style="color:#ff6b6b">
+            Nie udało się połączyć z żadną instancją Invidious.<br>
+            Sprawdź połączenie internetowe lub spróbuj później.<br><br>
+            <button onclick="openYouTubeSearch()" style="margin-top:10px;">Otwórz YouTube w nowej karcie</button>
+        </div>
+    `;
+    btn.disabled = false;
+    btn.textContent = "🔎 Szukaj";
+}
+
+function playYouTube(videoId, title, author) {
+    const wrap = document.getElementById("ytPlayerWrap");
+    const frame = document.getElementById("ytFrame");
+    const nowPlaying = document.getElementById("ytNowPlaying");
+
+    frame.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+    nowPlaying.textContent = `▶ ${title} — ${author}`;
     wrap.style.display = "block";
+
+    // Przewiń do playera
+    wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function openYouTubeSearch() {
+    const query = document.getElementById("ytQuery").value.trim();
+    window.open("https://www.youtube.com/results?search_query=" + encodeURIComponent(query), "_blank");
+}
+
+function formatTime(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // =============================
@@ -521,7 +712,7 @@ async function copyIP() {
 }
 
 function about() {
-    document.getElementById("toolResult").textContent = "GameHub v3.0 — Roblox tools & YouTube Music.";
+    document.getElementById("toolResult").textContent = "GameHub v3.2 — Roblox tools & YouTube Music.";
 }
 </script>
 </body>
