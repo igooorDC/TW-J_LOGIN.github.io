@@ -237,12 +237,6 @@ button.secondary:hover {
     color: #6d778a;
     margin-top: 3px;
 }
-.yt-duration {
-    font-size: 12px;
-    color: #4a5568;
-    margin-left: auto;
-    flex-shrink: 0;
-}
 .yt-player-wrap {
     margin-top: 15px;
     display: none;
@@ -331,7 +325,7 @@ footer {
 <body>
 <header>
     <div class="logo">⚡ Game<span>Hub</span></div>
-    <div class="status">v3.2</div>
+    <div class="status">v3.3</div>
 </header>
 <div class="container">
     <div class="hero">
@@ -394,14 +388,14 @@ footer {
         </div>
     </div>
 </div>
-<footer>GameHub v3.2 • Made with HTML / CSS / JavaScript</footer>
+<footer>GameHub v3.3 • Made with HTML / CSS / JavaScript</footer>
 
 <script>
 let currentUserId = null;
 const AVATAR_FALLBACK = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Crect width='90' height='90' fill='%23161d2c'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%236d778a' font-size='35'%3E%3F%3C/text%3E%3C/svg%3E";
 
 // =============================
-// ROBLOX
+// ROBLOX (via allorigins CORS proxy)
 // =============================
 async function searchPlayer() {
     const username = document.getElementById("username").value.trim();
@@ -431,34 +425,24 @@ async function searchPlayer() {
     currentUserId = null;
 
     try {
-        // POST na usernames/users - dokładne dopasowanie nazwy
-        const targetUrl = "https://users.roblox.com/v1/usernames/users";
-        const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(targetUrl);
+        // allorigins.win jako CORS proxy - działa z GitHub Pages
+        const targetUrl = `https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(username)}&limit=10`;
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
 
-        console.log("[Roblox] POST", proxyUrl);
+        console.log("[Roblox] Fetching:", proxyUrl);
 
-        const res = await fetch(proxyUrl, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Accept": "application/json"
-            },
-            body: JSON.stringify({
-                usernames: [username],
-                excludeBannedUsers: false
-            })
-        });
+        const res = await fetch(proxyUrl);
+        const proxyData = await res.json();
 
-        console.log("[Roblox] Status:", res.status);
+        console.log("[Roblox] Proxy status:", proxyData.status);
 
-        if (!res.ok) {
-            throw new Error("HTTP " + res.status);
+        if (proxyData.status.http_code !== 200) {
+            throw new Error("HTTP " + proxyData.status.http_code);
         }
 
-        const data = await res.json();
+        const data = JSON.parse(proxyData.contents);
         console.log("[Roblox] Data:", data);
 
-        // SPRAWDZENIE: czy użytkownik faktycznie istnieje
         if (!data.data || data.data.length === 0) {
             displayNameEl.textContent = "Nie znaleziono użytkownika.";
             userIdEl.textContent = "ID: —";
@@ -467,9 +451,9 @@ async function searchPlayer() {
             return;
         }
 
-        const user = data.data[0];
+        // Szukamy dokładnego dopasowania lub bierzemy pierwszy wynik
+        const user = data.data.find(u => u.name.toLowerCase() === username.toLowerCase()) || data.data[0];
         
-        // KLUCZOWE: API zwraca obiekt z id: null jeśli użytkownik nie istnieje
         if (!user.id) {
             displayNameEl.textContent = "Nie znaleziono użytkownika.";
             userIdEl.textContent = "ID: —";
@@ -479,17 +463,15 @@ async function searchPlayer() {
         }
 
         currentUserId = user.id;
-
         displayNameEl.textContent = `${user.displayName} (@${user.name})`;
         userIdEl.textContent = "ID: " + user.id;
 
-        // Avatar
+        // Avatar - bezpośredni URL (nie wymaga proxy dla <img>)
         avatarEl.src = `https://www.roblox.com/headshot-thumbnail/image?userId=${user.id}&width=180&height=180&format=png`;
         avatarEl.onerror = () => { avatarEl.src = AVATAR_FALLBACK; };
 
-        // Presence (opcjonalne)
-        getPresence(user.id).catch(err => {
-            console.log("[Roblox] Presence skipped:", err);
+        // Presence (opcjonalne - spróbujemy przez thingproxy)
+        getPresence(user.id).catch(() => {
             presenceEl.textContent = "⚪ Status niedostępny";
             presenceEl.className = "online gray";
         });
@@ -506,40 +488,45 @@ async function searchPlayer() {
 }
 
 async function getPresence(userId) {
-    const targetUrl = "https://presence.roblox.com/v1/presence/users";
-    const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(targetUrl);
+    try {
+        const targetUrl = "https://presence.roblox.com/v1/presence/users";
+        const proxyUrl = "https://thingproxy.freeboard.io/fetch/" + targetUrl;
 
-    const res = await fetch(proxyUrl, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-        },
-        body: JSON.stringify({ userIds: [userId] })
-    });
+        const res = await fetch(proxyUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            },
+            body: JSON.stringify({ userIds: [userId] })
+        });
 
-    if (!res.ok) throw new Error("HTTP " + res.status);
+        if (!res.ok) throw new Error("HTTP " + res.status);
 
-    const data = await res.json();
-    if (!data.userPresences || data.userPresences.length === 0) return;
+        const data = await res.json();
+        if (!data.userPresences || data.userPresences.length === 0) return;
 
-    const p = data.userPresences[0];
-    const presenceEl = document.getElementById("presence");
-    const gameEl = document.getElementById("game");
+        const p = data.userPresences[0];
+        const presenceEl = document.getElementById("presence");
+        const gameEl = document.getElementById("game");
 
-    if (p.userPresenceType === 0) {
-        presenceEl.textContent = "⚪ OFFLINE";
-        presenceEl.className = "online gray";
-    } else if (p.userPresenceType === 1) {
-        presenceEl.textContent = "🟢 ONLINE";
-        presenceEl.className = "online green";
-    } else if (p.userPresenceType === 2) {
-        presenceEl.textContent = "🟢 W GRZE";
-        presenceEl.className = "online green";
-        gameEl.textContent = "🎮 " + (p.lastLocation || "Gra Roblox");
-    } else if (p.userPresenceType === 3) {
-        presenceEl.textContent = "🟡 ROBLOX STUDIO";
-        presenceEl.className = "online yellow";
+        if (p.userPresenceType === 0) {
+            presenceEl.textContent = "⚪ OFFLINE";
+            presenceEl.className = "online gray";
+        } else if (p.userPresenceType === 1) {
+            presenceEl.textContent = "🟢 ONLINE";
+            presenceEl.className = "online green";
+        } else if (p.userPresenceType === 2) {
+            presenceEl.textContent = "🟢 W GRZE";
+            presenceEl.className = "online green";
+            gameEl.textContent = "🎮 " + (p.lastLocation || "Gra Roblox");
+        } else if (p.userPresenceType === 3) {
+            presenceEl.textContent = "🟡 ROBLOX STUDIO";
+            presenceEl.className = "online yellow";
+        }
+    } catch (e) {
+        console.log("[Roblox] Presence error:", e);
+        throw e;
     }
 }
 
@@ -559,16 +546,8 @@ function openRoblox() {
 }
 
 // =============================
-// YOUTUBE (Invidious API - bez proxy, z CORS)
+// YOUTUBE (via allorigins + LemnosLife API)
 // =============================
-const INVIDIOUS_INSTANCES = [
-    "https://invidious.snopyta.org",
-    "https://y.com.sb",
-    "https://invidious.perennialte.ch",
-    "https://iv.nboeck.de",
-    "https://iv.datura.network"
-];
-
 async function searchYouTube() {
     const query = document.getElementById("ytQuery").value.trim();
     if (!query) {
@@ -584,79 +563,69 @@ async function searchYouTube() {
     btn.innerHTML = '<span class="spinner"></span>Szukam...';
     resultsEl.style.display = "block";
     resultsEl.innerHTML = '<div class="empty-state"><span class="spinner"></span>Wyszukiwanie...</div>';
-    hintEl.textContent = "Próbuję połączyć się z Invidious API...";
+    hintEl.textContent = "Łączę się z YouTube API...";
 
-    let lastError = null;
+    try {
+        // LemnosLife = mirror YouTube Data API (bez klucza API) przez allorigins
+        const targetUrl = `https://yt.lemnoslife.com/v3/search?part=snippet&maxResults=10&q=${encodeURIComponent(query)}&type=video`;
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
 
-    for (const instance of INVIDIOUS_INSTANCES) {
-        try {
-            const url = `${instance}/api/v1/search?q=${encodeURIComponent(query)}&type=video`;
-            console.log("[YouTube] Trying", url);
+        console.log("[YouTube] Fetching:", proxyUrl);
 
-            const res = await fetch(url, {
-                method: "GET",
-                headers: { "Accept": "application/json" }
-            });
+        const res = await fetch(proxyUrl);
+        const proxyData = await res.json();
 
-            if (!res.ok) {
-                console.log("[YouTube]", instance, "HTTP", res.status);
-                continue;
-            }
+        console.log("[YouTube] Proxy status:", proxyData.status);
 
-            const data = await res.json();
-            console.log("[YouTube]", instance, "results:", data.length);
+        if (proxyData.status.http_code !== 200) {
+            throw new Error("HTTP " + proxyData.status.http_code);
+        }
 
-            if (!data || data.length === 0) {
-                resultsEl.innerHTML = '<div class="empty-state">Nie znaleziono wyników.</div>';
-                btn.disabled = false;
-                btn.textContent = "🔎 Szukaj";
-                return;
-            }
+        const data = JSON.parse(proxyData.contents);
+        console.log("[YouTube] Data:", data);
 
-            // Renderuj wyniki
-            let html = '';
-            data.slice(0, 15).forEach(item => {
-                const videoId = item.videoId;
-                const thumb = item.videoThumbnails?.[0]?.url || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
-                const duration = item.lengthSeconds > 0 ? formatTime(item.lengthSeconds) : '';
-                const title = item.title || 'Bez tytułu';
-                const author = item.author || 'Nieznany';
-
-                html += `
-                    <div class="yt-item" onclick="playYouTube('${videoId}', '${escapeHtml(title)}', '${escapeHtml(author)}')">
-                        <img class="yt-thumb" src="${thumb}" alt="" onerror="this.src='${AVATAR_FALLBACK}'">
-                        <div class="yt-info">
-                            <div class="yt-title">${escapeHtml(title)}</div>
-                            <div class="yt-author">${escapeHtml(author)}</div>
-                        </div>
-                        <div class="yt-duration">${duration}</div>
-                    </div>
-                `;
-            });
-
-            resultsEl.innerHTML = html;
-            hintEl.textContent = "Kliknij utwór, aby odtworzyć w playerze poniżej.";
+        if (!data.items || data.items.length === 0) {
+            resultsEl.innerHTML = '<div class="empty-state">Nie znaleziono wyników.</div>';
             btn.disabled = false;
             btn.textContent = "🔎 Szukaj";
             return;
-
-        } catch (err) {
-            console.log("[YouTube]", instance, "failed:", err.message);
-            lastError = err;
         }
-    }
 
-    // Wszystkie instancje padły
-    console.error("[YouTube] All instances failed:", lastError);
-    resultsEl.innerHTML = `
-        <div class="empty-state" style="color:#ff6b6b">
-            Nie udało się połączyć z żadną instancją Invidious.<br>
-            Sprawdź połączenie internetowe lub spróbuj później.<br><br>
-            <button onclick="openYouTubeSearch()" style="margin-top:10px;">Otwórz YouTube w nowej karcie</button>
-        </div>
-    `;
-    btn.disabled = false;
-    btn.textContent = "🔎 Szukaj";
+        // Renderuj wyniki
+        let html = '';
+        data.items.forEach(item => {
+            const videoId = item.id.videoId;
+            const thumb = item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url || '';
+            const title = item.snippet.title || 'Bez tytułu';
+            const author = item.snippet.channelTitle || 'Nieznany';
+
+            html += `
+                <div class="yt-item" onclick="playYouTube('${videoId}', '${escapeHtml(title)}', '${escapeHtml(author)}')">
+                    <img class="yt-thumb" src="${thumb}" alt="" onerror="this.src='${AVATAR_FALLBACK}'">
+                    <div class="yt-info">
+                        <div class="yt-title">${escapeHtml(title)}</div>
+                        <div class="yt-author">${escapeHtml(author)}</div>
+                    </div>
+                </div>
+            `;
+        });
+
+        resultsEl.innerHTML = html;
+        hintEl.textContent = "Kliknij utwór, aby odtworzyć w playerze poniżej.";
+
+    } catch (error) {
+        console.error("[YouTube] Error:", error);
+        resultsEl.innerHTML = `
+            <div class="empty-state" style="color:#ff6b6b">
+                Nie udało się wyszukać na YouTube.<br>
+                ${error.message}<br><br>
+                <button onclick="openYouTubeSearch()" style="margin-top:10px;">Otwórz YouTube w nowej karcie</button>
+            </div>
+        `;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "🔎 Szukaj";
+    }
 }
 
 function playYouTube(videoId, title, author) {
@@ -667,20 +636,12 @@ function playYouTube(videoId, title, author) {
     frame.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
     nowPlaying.textContent = `▶ ${title} — ${author}`;
     wrap.style.display = "block";
-
-    // Przewiń do playera
     wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function openYouTubeSearch() {
     const query = document.getElementById("ytQuery").value.trim();
     window.open("https://www.youtube.com/results?search_query=" + encodeURIComponent(query), "_blank");
-}
-
-function formatTime(seconds) {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
 function escapeHtml(text) {
@@ -723,7 +684,7 @@ async function copyIP() {
 }
 
 function about() {
-    document.getElementById("toolResult").textContent = "GameHub v3.2 — Roblox tools & YouTube Music.";
+    document.getElementById("toolResult").textContent = "GameHub v3.3 — Roblox tools & YouTube Music.";
 }
 </script>
 </body>
