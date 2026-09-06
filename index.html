@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GameHub – poprawiony</title>
+    <title>GameHub – naprawiony v3.3.3</title>
     <style>
-        /* style jak poprzednio – możesz zachować całość, nic nie zmieniałem w CSS */
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Segoe UI', Arial, sans-serif; background: #080b12; color: #fff; min-height: 100vh; }
         header { height: 70px; background: #0d111b; border-bottom: 1px solid #202738; display: flex; align-items: center; justify-content: space-between; padding: 0 30px; }
@@ -52,7 +51,7 @@
 <body>
     <header>
         <div class="logo">⚡ Game<span>Hub</span></div>
-        <div class="status">v3.3.2</div>
+        <div class="status">v3.3.3</div>
     </header>
     <div class="container">
         <div class="hero">
@@ -114,7 +113,7 @@
             </div>
         </div>
     </div>
-    <footer>GameHub v3.3.2 • Poprawione proxy</footer>
+    <footer>GameHub v3.3.3 • Nowe proxy i fallback</footer>
 
     <script>
         let currentUserId = null;
@@ -122,10 +121,11 @@
 
         // ===== LISTA PROXY (kolejność = priorytet) =====
         const PROXY_LIST = [
-            { name: 'corsproxy.io', build: (url) => 'https://corsproxy.io/?url=' + encodeURIComponent(url) },
-            { name: 'allorigins.raw', build: (url) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url) },
+            { name: 'corsproxy', build: (url) => 'https://corsproxy.io/?url=' + encodeURIComponent(url) },
+            { name: 'corsproxy.org', build: (url) => 'https://corsproxy.org/?url=' + encodeURIComponent(url) },
+            { name: 'allorigins.get', build: (url) => 'https://api.allorigins.win/get?url=' + encodeURIComponent(url) },
             { name: 'codetabs', build: (url) => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url) },
-            { name: 'thingproxy', build: (url) => 'https://thingproxy.freeboard.io/fetch/' + url } // nie wymaga encode
+            { name: 'thingproxy', build: (url) => 'https://thingproxy.freeboard.io/fetch/' + url }
         ];
 
         async function fetchViaProxy(targetUrl, options = {}) {
@@ -135,17 +135,11 @@
 
             for (const proxy of PROXY_LIST) {
                 try {
-                    let proxyUrl;
-                    if (proxy.name === 'thingproxy') {
-                        proxyUrl = proxy.build(targetUrl); // już zakodowany
-                    } else {
-                        proxyUrl = proxy.build(targetUrl);
-                    }
-
+                    let proxyUrl = proxy.build(targetUrl);
                     console.log(`[Proxy] Próba: ${proxy.name} → ${proxyUrl}`);
 
                     const controller = new AbortController();
-                    const timeout = setTimeout(() => controller.abort(), 15000);
+                    const timeout = setTimeout(() => controller.abort(), 20000);
 
                     const fetchOptions = {
                         method: method,
@@ -161,13 +155,25 @@
                     const res = await fetch(proxyUrl, fetchOptions);
                     clearTimeout(timeout);
 
-                    if (res.ok) {
-                        console.log(`[Proxy] Sukces: ${proxy.name}`);
-                        return res;
+                    if (!res.ok) {
+                        console.warn(`[Proxy] HTTP ${res.status} z ${proxy.name}`);
+                        lastError = new Error(`HTTP ${res.status} z ${proxy.name}`);
+                        continue;
                     }
 
-                    console.warn(`[Proxy] HTTP ${res.status} z ${proxy.name}`);
-                    lastError = new Error(`HTTP ${res.status} z ${proxy.name}`);
+                    // Jeśli proxy to allorigins.get, to zwraca JSON z polem contents
+                    if (proxy.name === 'allorigins.get') {
+                        const data = await res.json();
+                        if (data && data.contents) {
+                            // Zwracamy sztuczny Response z zawartością
+                            return new Response(data.contents, { status: 200, headers: { 'Content-Type': 'application/json' } });
+                        } else {
+                            throw new Error('Brak pola contents w odpowiedzi allorigins');
+                        }
+                    }
+
+                    console.log(`[Proxy] Sukces: ${proxy.name}`);
+                    return res;
                 } catch (err) {
                     console.warn(`[Proxy] Błąd ${proxy.name}:`, err.message);
                     lastError = err;
@@ -176,13 +182,11 @@
             throw new Error('Wszystkie proxy zawiodły. Spróbuj ponownie później.');
         }
 
-        // Pobierz JSON z GET przez proxy
         async function getJSONviaProxy(url) {
             const res = await fetchViaProxy(url);
             return await res.json();
         }
 
-        // Pobierz JSON z POST przez proxy
         async function postJSONviaProxy(url, body) {
             const res = await fetchViaProxy(url, {
                 method: 'POST',
@@ -221,14 +225,13 @@
             hintEl.textContent = "🔄 Próba połączenia z Roblox...";
 
             try {
-                // 1. Szukaj ID użytkownika – nowy endpoint
+                // 1. Szukaj ID użytkownika
                 const searchUrl = `https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(username)}&limit=10`;
                 let data;
                 try {
                     data = await getJSONviaProxy(searchUrl);
                 } catch (e) {
                     console.warn('Nowy endpoint nie działa, próbuję starszego...');
-                    // Stary endpoint zapasowy
                     const oldUrl = `https://api.roblox.com/users/get-by-username?username=${encodeURIComponent(username)}`;
                     data = await getJSONviaProxy(oldUrl);
                 }
@@ -237,7 +240,6 @@
                 if (data.data && data.data.length > 0) {
                     user = data.data.find(u => u.name.toLowerCase() === username.toLowerCase()) || data.data[0];
                 } else if (data.Id) {
-                    // stary format
                     user = { id: data.Id, name: data.Username, displayName: data.Username };
                 }
 
@@ -319,68 +321,90 @@
             hintEl.textContent = "🔄 Łączenie z API YouTube...";
 
             try {
-                let data = null;
-                let source = 'lemnoslife';
+                let items = [];
 
-                // Próba 1: LemnosLife
+                // Próba 1: LemnosLife przez proxy
                 try {
                     const url = `https://yt.lemnoslife.com/v3/search?part=snippet&maxResults=12&q=${encodeURIComponent(query)}&type=video`;
-                    data = await getJSONviaProxy(url);
+                    const data = await getJSONviaProxy(url);
+                    if (data.items) {
+                        items = data.items.map(item => ({
+                            videoId: item.id?.videoId,
+                            title: item.snippet?.title || 'Bez tytułu',
+                            author: item.snippet?.channelTitle || 'Nieznany',
+                            thumb: item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || ''
+                        }));
+                    }
                 } catch (e) {
-                    console.warn('LemnosLife nie działa, próbuję Invidious...');
-                    // Próba 2: Invidious (publiczna instancja)
-                    const invidiousUrl = `https://inv.tux.pizza/api/v1/search?q=${encodeURIComponent(query)}&type=video`;
-                    data = await getJSONviaProxy(invidiousUrl);
-                    source = 'invidious';
+                    console.warn('LemnosLife nie działa:', e);
                 }
 
-                if (!data) throw new Error('Brak danych');
-
-                let html = '';
-                if (source === 'lemnoslife') {
-                    data.items?.forEach(item => {
-                        const videoId = item.id?.videoId;
-                        if (!videoId) return;
-                        const thumb = item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || '';
-                        const title = item.snippet?.title || 'Bez tytułu';
-                        const author = item.snippet?.channelTitle || 'Nieznany';
-                        html += `
-                            <div class="yt-item" onclick="playYouTube('${videoId}', '${escapeHtml(title)}', '${escapeHtml(author)}')">
-                                <img class="yt-thumb" src="${thumb}" onerror="this.style.display='none'">
-                                <div class="yt-info"><div class="yt-title">${escapeHtml(title)}</div><div class="yt-author">${escapeHtml(author)}</div></div>
-                            </div>`;
-                    });
-                } else if (source === 'invidious') {
-                    // Invidious zwraca tablicę
-                    if (Array.isArray(data)) {
-                        data.forEach(item => {
-                            const videoId = item.videoId;
-                            if (!videoId) return;
-                            const thumb = item.videoThumbnails?.[0]?.url || '';
-                            const title = item.title || 'Bez tytułu';
-                            const author = item.author || 'Nieznany';
-                            html += `
-                                <div class="yt-item" onclick="playYouTube('${videoId}', '${escapeHtml(title)}', '${escapeHtml(author)}')">
-                                    <img class="yt-thumb" src="${thumb}" onerror="this.style.display='none'">
-                                    <div class="yt-info"><div class="yt-title">${escapeHtml(title)}</div><div class="yt-author">${escapeHtml(author)}</div></div>
-                                </div>`;
-                        });
-                    } else if (data.videos) {
-                        data.videos.forEach(item => {
-                            const videoId = item.videoId;
-                            if (!videoId) return;
-                            const thumb = item.videoThumbnails?.[0]?.url || '';
-                            const title = item.title || 'Bez tytułu';
-                            const author = item.author || 'Nieznany';
-                            html += `...`;
-                        });
+                // Próba 2: Invidious bezpośrednio (może ma CORS)
+                if (items.length === 0) {
+                    try {
+                        const invUrl = `https://inv.tux.pizza/api/v1/search?q=${encodeURIComponent(query)}&type=video`;
+                        const res = await fetch(invUrl);
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (Array.isArray(data)) {
+                                items = data.map(item => ({
+                                    videoId: item.videoId,
+                                    title: item.title,
+                                    author: item.author,
+                                    thumb: item.videoThumbnails?.[0]?.url || ''
+                                }));
+                            } else if (data.videos) {
+                                items = data.videos.map(item => ({
+                                    videoId: item.videoId,
+                                    title: item.title,
+                                    author: item.author,
+                                    thumb: item.videoThumbnails?.[0]?.url || ''
+                                }));
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Bezpośredni Invidious nie działa:', e);
                     }
                 }
 
-                if (!html) {
+                // Próba 3: Invidious przez proxy
+                if (items.length === 0) {
+                    try {
+                        const invUrl = `https://inv.tux.pizza/api/v1/search?q=${encodeURIComponent(query)}&type=video`;
+                        const data = await getJSONviaProxy(invUrl);
+                        if (Array.isArray(data)) {
+                            items = data.map(item => ({
+                                videoId: item.videoId,
+                                title: item.title,
+                                author: item.author,
+                                thumb: item.videoThumbnails?.[0]?.url || ''
+                            }));
+                        } else if (data.videos) {
+                            items = data.videos.map(item => ({
+                                videoId: item.videoId,
+                                title: item.title,
+                                author: item.author,
+                                thumb: item.videoThumbnails?.[0]?.url || ''
+                            }));
+                        }
+                    } catch (e) {
+                        console.warn('Invidious przez proxy nie działa:', e);
+                    }
+                }
+
+                if (items.length === 0) {
                     resultsEl.innerHTML = '<div class="empty-state">Brak wyników dla: ' + escapeHtml(query) + '</div>';
                     hintEl.textContent = "❌ Brak wyników.";
                 } else {
+                    let html = '';
+                    items.forEach(item => {
+                        if (!item.videoId) return;
+                        html += `
+                            <div class="yt-item" onclick="playYouTube('${item.videoId}', '${escapeHtml(item.title)}', '${escapeHtml(item.author)}')">
+                                <img class="yt-thumb" src="${item.thumb}" onerror="this.style.display='none'">
+                                <div class="yt-info"><div class="yt-title">${escapeHtml(item.title)}</div><div class="yt-author">${escapeHtml(item.author)}</div></div>
+                            </div>`;
+                    });
                     resultsEl.innerHTML = html;
                     hintEl.textContent = "✅ Kliknij utwór, aby odtworzyć.";
                 }
@@ -443,7 +467,7 @@
             } catch { document.getElementById("toolResult").textContent = "❌ Nie udało się pobrać IP."; }
         }
         function about() {
-            document.getElementById("toolResult").textContent = "ℹ️ GameHub v3.3.2 – poprawione proxy";
+            document.getElementById("toolResult").textContent = "ℹ️ GameHub v3.3.3 – naprawione proxy";
         }
     </script>
 </body>
